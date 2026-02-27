@@ -1,0 +1,35 @@
+services:
+
+  db:
+    image: postgres:16
+    container_name: hms_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: hms
+      POSTGRES_USER: hms
+      POSTGRES_PASSWORD: hms
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    container_name: hms_backend
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+  frontend:
+    build: ./frontend
+    container_name: hms_frontend
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
