@@ -1,6 +1,6 @@
 services:
 
-  db:
+  postgres:
     image: postgres:16
     container_name: hms_postgres
     restart: always
@@ -20,14 +20,15 @@ services:
       - ./backend:/app
     ports:
       - "8000:8000"
-    depends_on:
-      - db
+    environment:
+      - DB_HOST=postgres 
 
   frontend:
     build: ./frontend
     container_name: hms_frontend
     volumes:
       - ./frontend:/app
+      - /app/node_modules
     ports:
       - "3000:3000"
 
