@@ -29,6 +29,9 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    environment:
+      - WATCHPACK_POLLING=true
+    command: npm run dev
     ports:
       - "3000:3000"
 
