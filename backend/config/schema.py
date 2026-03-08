@@ -4,8 +4,12 @@ from graphene_django import DjangoObjectType
 from django.contrib.auth import get_user_model
 from graphql_jwt.decorators import login_required
 
+from django.conf import settings
+from django_tenants.utils import schema_context
+
 from inventory.models import Location, Building, Floor, Room
 from bookings.models import Guest, Booking
+from tenants.models import Tenant, Domain
 from users.permissions import manager_required, staff_required, admin_required
 
 User = get_user_model()
@@ -55,6 +59,18 @@ class BookingType(DjangoObjectType):
         fields = "__all__"
 
 
+class TenantType(DjangoObjectType):
+    class Meta:
+        model = Tenant
+        fields = ("id", "name", "subdomain", "schema_name", "is_active", "paid_until", "on_trial", "created_at")
+
+    domain = graphene.String()
+
+    def resolve_domain(self, info):
+        d = self.domains.first()
+        return d.domain if d else None
+
+
 # --- Queries ---
 
 class Query(graphene.ObjectType):
@@ -75,6 +91,12 @@ class Query(graphene.ObjectType):
     booking = graphene.Field(BookingType, id=graphene.Int(required=True))
 
     dashboard_stats = graphene.JSONString()
+
+    all_tenants = graphene.List(TenantType)
+
+    @login_required
+    def resolve_all_tenants(self, info):
+        return Tenant.objects.exclude(schema_name="public")
 
     @login_required
     def resolve_me(self, info):
@@ -287,11 +309,55 @@ class UpdateBookingStatus(graphene.Mutation):
         return UpdateBookingStatus(booking=booking)
 
 
+class CreateTenant(graphene.Mutation):
+    class Arguments:
+        name = graphene.String(required=True)
+        subdomain = graphene.String(required=True)
+        admin_username = graphene.String(required=True)
+        admin_password = graphene.String(required=True)
+        admin_email = graphene.String()
+
+    tenant = graphene.Field(TenantType)
+    domain = graphene.String()
+    message = graphene.String()
+
+    @admin_required
+    def mutate(self, info, name, subdomain, admin_username, admin_password, admin_email=""):
+        subdomain = subdomain.lower().strip()
+
+        if Tenant.objects.filter(subdomain=subdomain).exists():
+            return CreateTenant(tenant=None, domain=None, message=f"Subdomain '{subdomain}' already exists")
+
+        base_domain = getattr(settings, "TENANT_BASE_DOMAIN", "localtest.me")
+        domain_name = f"{subdomain}.{base_domain}"
+        if Domain.objects.filter(domain=domain_name).exists():
+            return CreateTenant(tenant=None, domain=None, message=f"Domain '{domain_name}' already in use")
+
+        # Create tenant (this creates the schema and runs migrations)
+        tenant = Tenant(schema_name=subdomain, name=name, subdomain=subdomain)
+        tenant.save()
+
+        Domain.objects.create(domain=domain_name, tenant=tenant, is_primary=True)
+
+        # Create admin user in the new tenant's schema
+        with schema_context(subdomain):
+            admin_user = User(username=admin_username, email=admin_email, role="admin")
+            admin_user.set_password(admin_password)
+            admin_user.save()
+
+        return CreateTenant(
+            tenant=tenant,
+            domain=domain_name,
+            message=f"Hotel '{name}' created successfully at {domain_name}",
+        )
+
+
 class Mutation(graphene.ObjectType):
     token_auth = graphql_jwt.ObtainJSONWebToken.Field()
     verify_token = graphql_jwt.Verify.Field()
     refresh_token = graphql_jwt.Refresh.Field()
 
+    create_tenant = CreateTenant.Field()
     create_user = CreateUser.Field()
     create_room = CreateRoom.Field()
     update_room = UpdateRoom.Field()

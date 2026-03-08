@@ -90,6 +90,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:3001",
 ]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://\w+\.localtest\.me(:\d+)?$",
+]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     "accept",
@@ -108,6 +111,11 @@ CHANNEL_LAYERS = {
 }
 
 AUTH_USER_MODEL = 'users.User'
+
+# Multi-tenancy: base domain for auto-generating tenant subdomains
+# Development: "localtest.me" (resolves to 127.0.0.1 automatically)
+# Production:  "yourdomain.com" (requires wildcard DNS: *.yourdomain.com → server IP)
+TENANT_BASE_DOMAIN = os.environ.get("TENANT_BASE_DOMAIN", "localtest.me")
 
 # Celery
 CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")

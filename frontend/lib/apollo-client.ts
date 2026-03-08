@@ -2,8 +2,17 @@ import { ApolloClient, InMemoryCache, createHttpLink } from "@apollo/client";
 import { setContext } from "@apollo/client/link/context";
 import Cookies from "js-cookie";
 
+function getGraphQLUri() {
+  if (typeof window === "undefined") {
+    return process.env.NEXT_PUBLIC_GRAPHQL_URL || "http://localhost:8000/graphql/";
+  }
+  // Use the same hostname as the browser so tenant middleware picks up the subdomain
+  const hostname = window.location.hostname;
+  return `http://${hostname}:8000/graphql/`;
+}
+
 const httpLink = createHttpLink({
-  uri: process.env.NEXT_PUBLIC_GRAPHQL_URL || "http://localhost:8000/graphql/",
+  uri: getGraphQLUri(),
 });
 
 const authLink = setContext((_, { headers }) => {
