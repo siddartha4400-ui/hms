@@ -15,14 +15,27 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
+from django.http import HttpResponse
+from rest_framework.routers import DefaultRouter
 from graphene_django.views import GraphQLView
 from django.views.decorators.csrf import csrf_exempt
 from .schema import schema
-from .views import TestEmailView
+from tenants.api import TenantViewSet
+from inventory.api import RoomViewSet
+from users.api import UserViewSet
+from bookings.api import BookingViewSet
+
+# REST API Router
+router = DefaultRouter()
+router.register(r'tenants', TenantViewSet, basename='tenant')
+router.register(r'rooms', RoomViewSet, basename='room')
+router.register(r'users', UserViewSet, basename='user')
+router.register(r'bookings', BookingViewSet, basename='booking')
 
 urlpatterns = [
+    path('', lambda request: HttpResponse('Welcome to HMS - Hotel Management System')),
     path('admin/', admin.site.urls),
+    path('api/', include(router.urls)),
     path("graphql/", csrf_exempt(GraphQLView.as_view(graphiql=True, schema=schema))),
-    path('api/test-email/', TestEmailView.as_view(), name='test-email'),
 ]

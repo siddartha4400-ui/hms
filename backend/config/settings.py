@@ -12,12 +12,16 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
+from environ import Env
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+env = Env(DEBUG=(bool, False))
+env_file = BASE_DIR.parent / ".env"
+if env_file.exists():
+    env.read_env(str(env_file))
 
 
 # Quick-start development settings - unsuitable for production
@@ -34,28 +38,47 @@ ALLOWED_HOSTS = ['*']
 
 # Application definition
 
-INSTALLED_APPS = [
+# shared apps (public schema)
+SHARED_APPS = [
+    'django_tenants',  # required
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    "corsheaders",
-    "channels",
-    "graphene_django",
-    "graphql_jwt.refresh_token",
+    'corsheaders',
+    'tenants',
+    'users',
+    'graphql_jwt.refresh_token',
+    'graphene_django',
+    'channels',
+    'inventory',
+    'bookings',
 ]
 
+# tenant-specific apps (also created in each tenant schema)
+TENANT_APPS = [
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'graphql_jwt.refresh_token',
+    'users',
+    'inventory',
+    'bookings',
+]
+
+INSTALLED_APPS = list(dict.fromkeys(SHARED_APPS + TENANT_APPS))
+
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     'django.middleware.security.SecurityMiddleware',
+    'django_tenants.middleware.main.TenantMainMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    "corsheaders.middleware.CorsMiddleware",
 ]
 # Optional for refresh tokens
 
@@ -65,10 +88,34 @@ GRAPHQL_JWT = {
 }
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
+    "http://localhost:3001",
 ]
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "authorization",
+    "content-type",
+    "origin",
+    "x-requested-with",
+]
 
 ASGI_APPLICATION = "config.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}
+
+AUTH_USER_MODEL = 'users.User'
+
+# Celery
+CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+CELERY_RESULT_BACKEND = os.getenv("REDIS_URL", "redis://redis:6379/0")
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = "UTC"
 
 ROOT_URLCONF = 'config.urls'
 
@@ -91,24 +138,16 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 
 # Database
-# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'hms',
-        'USER': 'hms',
-        'PASSWORD': 'hms',
-        'HOST': 'postgres',
-        'PORT': '5432',
-    }
+    'default': dj_database_url.config(default='postgresql://postgres:password@postgres:5432/hms')
 }
+
+DATABASES['default']['ENGINE'] = 'django_tenants.postgresql_backend'
+
+# django-tenants configuration
+DATABASE_ROUTERS = ('django_tenants.routers.TenantSyncRouter',)
+TENANT_MODEL = 'tenants.Tenant'  # app.Model
+TENANT_DOMAIN_MODEL = 'tenants.Domain'  # app.Domain
 
 GRAPHENE = {
     "SCHEMA": "config.schema.schema",
