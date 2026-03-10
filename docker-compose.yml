@@ -31,6 +31,7 @@ services:
       - /app/node_modules
     environment:
       - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
     command: npm run dev
     ports:
       - "3000:3000"
