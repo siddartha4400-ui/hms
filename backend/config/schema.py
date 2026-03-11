@@ -1,51 +1,25 @@
 import graphene
 import graphql_jwt
-from django.contrib.auth import get_user_model
-from graphql_jwt.decorators import login_required
 
+# Queries
+from .queries.user_queries import UserQuery
 
-class Query(graphene.ObjectType):
-    me = graphene.String()
+# Mutations
+from .mutations.auth import CreateUser
+from .mutations.whatsapp import SendWhatsappTemplate
 
-    @login_required
-    def resolve_me(self, info):
-        return info.context.user.username
-
-
-class CreateUser(graphene.Mutation):
-    class Arguments:
-        username = graphene.String(required=True)
-        password = graphene.String(required=True)
-
-    message = graphene.String()
-
-    def mutate(self, info, username, password):
-        User = get_user_model()
-
-        if User.objects.filter(username=username).exists():
-            return CreateUser(message="User already exists")
-
-        User.objects.create_user(
-            username=username,
-            password=password
-        )
-
-        return CreateUser(message="User created successfully")
-
+class Query(UserQuery, graphene.ObjectType):
+    # You can add more queries from other features here
+    pass
 
 class Mutation(graphene.ObjectType):
-
-    # ✅ LOGIN
+    # Auth
+    create_user = CreateUser.Field()
     token_auth = graphql_jwt.ObtainJSONWebToken.Field()
-
-    # ✅ VERIFY TOKEN
     verify_token = graphql_jwt.Verify.Field()
-
-    # ✅ REFRESH TOKEN
     refresh_token = graphql_jwt.Refresh.Field()
 
-    # ✅ REGISTER
-    create_user = CreateUser.Field()
-
+    # WhatsApp
+    send_whatsapp_template = SendWhatsappTemplate.Field()
 
 schema = graphene.Schema(query=Query, mutation=Mutation)
