@@ -1,4 +1,6 @@
 import React from "react";
+import Input from "../../components/Input";
+import Button from "../../components/Button";
 
 type Props = {
   username: string;
@@ -15,29 +17,29 @@ export default function RouteMolecule({ username, setUsername, password, setPass
       <h1 className="mb-3 login-title">Login</h1>
 
       <form onSubmit={handleLogin} className="d-flex flex-column gap-3">
-        <input
+        <Input
           type="text"
           placeholder="Username"
           value={username}
-          onChange={(e) => setUsername(e.target.value)}
+          onChange={(e) => setUsername((e.target as HTMLInputElement).value)}
           required
           suppressHydrationWarning
-          className="form-control input-animate"
+          className="input-animate"
         />
 
-        <input
+        <Input
           type="password"
           placeholder="Password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => setPassword((e.target as HTMLInputElement).value)}
           required
           suppressHydrationWarning
-          className="form-control input-animate"
+          className="input-animate"
         />
 
-        <button type="submit" suppressHydrationWarning className="btn btn-primary btn-animate">
+        <Button type="submit" suppressHydrationWarning className="btn-animate">
           Login
-        </button>
+        </Button>
       </form>
 
       {error && <p className="text-danger mt-3">{error}</p>}

@@ -1,2 +1,3 @@
-// OLD COPY MOVED: Use frontend/project_components/index.ts instead
-export {};
+export { default as Input } from "./Input";
+export { default as Button } from "./Button";
+
