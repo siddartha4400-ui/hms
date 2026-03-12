@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import "bootstrap/dist/css/bootstrap.min.css";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -24,10 +25,55 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased app-body`}>
+        <header>
+          <nav className="navbar navbar-expand-lg navbar-light bg-light fixed-top shadow-sm">
+            <div className="container-fluid">
+              <a className="navbar-brand" href="#">HMS</a>
+              <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                <span className="navbar-toggler-icon"></span>
+              </button>
+              <div className="collapse navbar-collapse" id="navbarSupportedContent">
+                <ul className="navbar-nav me-auto mb-2 mb-lg-0">
+                  <li className="nav-item">
+                    <a className="nav-link active" aria-current="page" href="#">Home</a>
+                  </li>
+                  <li className="nav-item">
+                    <a className="nav-link" href="#">Features</a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </nav>
+        </header>
+
+        <main className="container-fluid mt-4">
+          <div className="row">
+            <aside className="col-md-3 mb-3">
+              <div className="list-group">
+                <a href="#" className="list-group-item list-group-item-action active">Dashboard</a>
+                <a href="#" className="list-group-item list-group-item-action">Patients</a>
+                <a href="#" className="list-group-item list-group-item-action">Appointments</a>
+              </div>
+            </aside>
+
+            <section className="col-md-9">
+              <div className="card">
+                <div className="card-body">{children}</div>
+              </div>
+            </section>
+          </div>
+        </main>
+
+        <footer className="fixed-bottom bg-light border-top">
+          <div className="container d-flex justify-content-between align-items-center py-2">
+            <small className="text-muted">© {new Date().getFullYear()} HMS. All rights reserved.</small>
+            <div>
+              <a className="me-3 text-muted" href="#">Privacy</a>
+              <a className="text-muted" href="#">Terms</a>
+            </div>
+          </div>
+        </footer>
       </body>
     </html>
   );

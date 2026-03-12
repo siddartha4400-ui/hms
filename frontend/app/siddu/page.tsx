@@ -1,38 +1,36 @@
-'use client';
-import { useEffect, useState } from 'react';
+"use client";
 
-type EnvData = {
-  apiUrl?: string;
-  otherVar?: string;
-};
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Sidduorganisam from "../../project_components/siddu/sidduorganisam";
 
-export default function SidduPage() {
-  // Correct variable names
-  const [env, setEnv] = useState<EnvData>({});
-  const [loading, setLoading] = useState(true); // lowercase, no typos
+export default function Siddumolecule() {
+  const router = useRouter();
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
 
   useEffect(() => {
-    async function fetchEnv() {
-      try {
-        const res = await fetch('/api/env');
-        const data: EnvData = await res.json();
-        setEnv(data);
-      } catch (err) {
-        console.error('Failed to load env:', err);
-      } finally {
-        setLoading(false);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        // Not logged in → redirect to login
+        router.replace("/login");
+        setAuthorized(false);
+      } else {
+        setAuthorized(true);
       }
+    } catch (err) {
+      // If access to localStorage fails, redirect to login as a safe default
+      router.replace("/login");
+      setAuthorized(false);
     }
+  }, [router]);
 
-    fetchEnv();
-  }, []);
+  if (authorized === null) {
+    // still determining auth status
+    return <div>Checking authentication…</div>;
+  }
 
-  if (loading) return <p>Loading environment variables...</p>;
+  if (!authorized) return null; // redirecting
 
-  return (
-    <div>
-      <h1>Siddu Page</h1>
-      <p>API URL: {env.apiUrl}</p>
-    </div>
-  );
+  return <Sidduorganisam />;
 }

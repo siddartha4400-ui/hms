@@ -24,3 +24,77 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* App-specific utility classes to replace inline styles used across the app */
+.app-body {
+  padding-top: 70px;
+  padding-bottom: 70px;
+}
+
+.max-w-420 {
+  max-width: 420px;
+}
+
+.max-w-400 {
+  max-width: 400px;
+}
+
+.test-container {
+  padding: 1rem !important;
+  max-width: 640px;
+}
+
+.value-box {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: #f6f6f6;
+}
+
+.min-vh-80 {
+  min-height: 80vh;
+}
+
+.max-w-560 {
+  max-width: 560px;
+}
+
+/* The legacy .no-sidebar rules were used when toggling body class to hide
+   header/footer from login; we now use route groups and protected layouts,
+   so these rules are no longer necessary. */
+
+/* Animations for the login page */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 600ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+.input-animate {
+  transition: box-shadow 180ms ease, transform 180ms ease;
+}
+.input-animate:focus {
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+
+.btn-animate {
+  transition: transform 160ms cubic-bezier(.2,.8,.2,1), box-shadow 160ms ease;
+}
+.btn-animate:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+/* small utility for centered text headings on login */
+.login-title {
+  text-align: center;
+}

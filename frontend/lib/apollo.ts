@@ -26,6 +26,8 @@ import { ApolloClient, InMemoryCache, HttpLink } from '@apollo/client';
 const client = new ApolloClient({
   link: new HttpLink({
     uri: process.env.NEXT_PUBLIC_API_URL, // e.g., http://localhost:8000/graphql/
+    // Send cookies (e.g. sessionid / csrftoken) if the server relies on them
+    credentials: "include",
   }),
   cache: new InMemoryCache(),
 });
