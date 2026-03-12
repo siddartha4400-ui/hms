@@ -1,11 +1,14 @@
-# test.py
+import os
 import requests
+from dotenv import load_dotenv
 
-# Hardcoded values (replace with your actual token, phone number, and template)
-WHATSAPP_TOKEN = "EAAM4yqnol78BQ6K1LxhgoyKosZBRbjgILrkBQ27gL6nn43iZCT9m2k9AjBunuZCLUBQ7QLrZCP49QVtBjLYUANNXpzZCNSYuE2XodlUbmCiSu1yZC3w8zbivtpckfyexwOqYEWpZBAdIBLW6pZCZCTsVYJP1wku938XUKtMRue0EM3HfAqcvSm9uv37GcHwEcZB66B1vyl1kk7w1Wz2ZAdR6HOhVaMhmgt50hkvuww2"
-PHONE_NUMBER_ID = "1026233740568781"  # Replace with your WhatsApp phone number ID
-TO_PHONE = "917799597377"             # Recipient number in international format
-TEMPLATE_NAME = "hello_world"         # WhatsApp template name
+load_dotenv()
+# Hardcoded values
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
+PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+TO_PHONE = "919353365284"
+TEMPLATE_NAME = "hms_otp"
+OTP_CODE = "123456"
 
 GRAPH_API_URL = f"https://graph.facebook.com/v25.0/{PHONE_NUMBER_ID}/messages"
 
@@ -15,7 +18,23 @@ payload = {
     "type": "template",
     "template": {
         "name": TEMPLATE_NAME,
-        "language": {"code": "en_US"}
+        "language": {"code": "en_US"},
+        "components": [
+            {
+                "type": "body",
+                "parameters": [
+                    {"type": "text", "text": OTP_CODE}
+                ]
+            },
+            {
+                "type": "button",
+                "sub_type": "url",
+                "index": "0",
+                "parameters": [
+                    {"type": "text", "text": OTP_CODE}
+                ]
+            }
+        ]
     }
 }
 
@@ -26,7 +45,5 @@ headers = {
 
 response = requests.post(GRAPH_API_URL, json=payload, headers=headers)
 
-try:
-    print(response.json())
-except ValueError:
-    print("Response not JSON:", response.text)
+print("Status Code:", response.status_code)
+print("Response:", response.json())
