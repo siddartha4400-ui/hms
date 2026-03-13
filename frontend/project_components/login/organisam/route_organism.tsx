@@ -4,7 +4,7 @@ import { useState } from "react";
 import { gql } from "@apollo/client";
 import client from "@/lib/apollo";
 import { useRouter } from "next/navigation";
-import RouteMolecule from "./route_molecule";
+import RouteMolecule from "../molecule/route_molecule";
 
 const LOGIN_MUTATION = gql`
   mutation login($username: String!, $password: String!) {
