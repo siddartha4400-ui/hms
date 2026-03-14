@@ -1,8 +1,14 @@
 django
 psycopg2-binary
+django-tenants
 django-cors-headers
+djangorestframework
 channels
 daphne
 graphene-django
 django-graphql-jwt
 python-dotenv
+dj-database-url
+celery
+redis
+requests

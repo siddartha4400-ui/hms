@@ -1,28 +1,31 @@
-'use client';
+"use client";
 
-import { usePathname } from 'next/navigation';
-import { Navbar, Nav, Container } from 'react-bootstrap';
+import { useAuth } from "@/lib/auth-context";
+import { useRouter } from "next/navigation";
 
 export default function Header() {
-  const pathname = usePathname();
+  const { user, logout } = useAuth();
+  const router = useRouter();
 
-  if (pathname.startsWith('/login')) return null;
+  const handleLogout = () => {
+    logout();
+    router.push("/login");
+  };
 
   return (
-    <Navbar expand="lg" bg="light" className="fixed-top shadow-sm">
-      <Container fluid>
-        <Navbar.Brand href="#">HMS</Navbar.Brand>
-        <Navbar.Toggle aria-controls="navbarNav" />
-        <Navbar.Collapse id="navbarNav">
-          <Nav className="me-auto">
-            <Nav.Link href="#" active>Home</Nav.Link>
-            <Nav.Link href="#">Dashboard</Nav.Link>
-            <Nav.Link href="#">Patients</Nav.Link>
-            <Nav.Link href="#">Appointments</Nav.Link>
-            <Nav.Link href="#">Features</Nav.Link>
-          </Nav>
-        </Navbar.Collapse>
-      </Container>
-    </Navbar>
+    <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6">
+      <div />
+      <div className="flex items-center gap-4">
+        <span className="text-sm text-gray-600">
+          {user || "User"}
+        </span>
+        <button
+          onClick={handleLogout}
+          className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+        >
+          Sign out
+        </button>
+      </div>
+    </header>
   );
 }

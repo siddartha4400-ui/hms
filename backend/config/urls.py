@@ -1,28 +1,27 @@
-"""
-URL configuration for config project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.0/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
+from django.http import HttpResponse
 from graphene_django.views import GraphQLView
 from django.views.decorators.csrf import csrf_exempt
 from .schema import schema
 from .views import TestEmailView
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    # Admin
+    path("admin/", admin.site.urls),
+
+    # GraphQL API (primary)
     path("graphql/", csrf_exempt(GraphQLView.as_view(graphiql=True, schema=schema))),
-    path('api/test-email/', TestEmailView.as_view(), name='test-email'),
+
+    # REST API (each app owns its own URLs)
+    path("api/", include("tenants.urls")),
+    path("api/", include("users.urls")),
+    path("api/", include("inventory.urls")),
+    path("api/", include("bookings.urls")),
+
+    # Utilities
+    path("api/test-email/", TestEmailView.as_view(), name="test-email"),
+
+    # Health check
+    path("", lambda request: HttpResponse("HMS - Hotel Management System")),
 ]
