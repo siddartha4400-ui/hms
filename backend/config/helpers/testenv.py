@@ -6,7 +6,7 @@ load_dotenv()
 # Hardcoded values
 WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
 PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
-TO_PHONE = "919353365284"
+TO_PHONE = "917032438088"
 TEMPLATE_NAME = "hms_otp"
 OTP_CODE = "123456"
 
