@@ -40,7 +40,7 @@ export default function ProfilePage() {
     }
 
     fetchData();
-  }, []);
+  }, [router]);
 
   if (loading) return <p>Loading...</p>;
   if (!data) return <p>No data found</p>;
