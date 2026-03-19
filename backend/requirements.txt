@@ -1,8 +1,9 @@
-django
+Django
 psycopg2-binary
-django-cors-headers
+Django-cors-headers
 channels
+requests
 daphne
 graphene-django
-django-graphql-jwt
+Django-graphql-jwt
 python-dotenv
