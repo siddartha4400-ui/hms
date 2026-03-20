@@ -1,40 +1,7 @@
-'use client';
-
-import { useState } from 'react';
-import { useMutation } from '@apollo/client/react';
-import { REQUEST_PASSWORD_RESET_MUTATION } from '@/project_components/login/graphql/operations';
-import { FiMail, FiArrowLeft } from 'react-icons/fi';
-import Link from 'next/link';
+import ForgotPasswordOrganism from '@/project_components/common-routes/organisam/forgot-password-organism';
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-
-  const [requestReset, { loading }] = useMutation(REQUEST_PASSWORD_RESET_MUTATION);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-
-    try {
-      const result = await requestReset({
-        variables: { email },
-      });
-
-      if (result.data?.requestPasswordReset?.success) {
-        setSuccess(result.data?.requestPasswordReset?.message || 'Reset link sent to your email');
-        setSubmitted(true);
-        setEmail('');
-      } else {
-        setError(result.data?.requestPasswordReset?.message || 'Failed to send reset link');
-      }
-    } catch (err: any) {
-      setError(err.message || 'An error occurred');
-    }
-  };
+  return <ForgotPasswordOrganism />;
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
