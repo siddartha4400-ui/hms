@@ -1,0 +1,1 @@
+"""Subsite GraphQL queries belong here."""

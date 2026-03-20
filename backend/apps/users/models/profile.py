@@ -1,0 +1,1 @@
+"""User profile model placeholders live here during the refactor."""

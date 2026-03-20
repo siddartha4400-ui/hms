@@ -1,0 +1,1 @@
+"""User GraphQL queries belong here."""

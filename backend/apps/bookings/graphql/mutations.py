@@ -1,0 +1,1 @@
+"""Booking GraphQL mutations belong here."""

@@ -1,0 +1,1 @@
+"""Booking models belong here."""

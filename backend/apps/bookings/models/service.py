@@ -1,0 +1,1 @@
+"""Bookable service models belong here."""

@@ -1,281 +1,158 @@
 # AI Development Guide
 
-This repository uses a **strict layered architecture** for the Next.js App Router.
+This repository uses a layered frontend and backend architecture.
 
-Architecture flow:
+## Frontend Rule
 
-Route → Organism → Molecule → Canonical Components
+Frontend flow:
 
-Goal: **clear separation of routing, logic, and UI.**
+```text
+Route -> Organisam -> Molecule -> Canonical Components
+```
 
----
+Route files must stay minimal.
 
-# Project Structure
+### Frontend Structure
 
+```text
 frontend/
-├── app/                          # Next.js route entry points
+├── app/
 │   ├── page.tsx
-│   └── <route>/
-│       └── page.tsx
-│
-├── components/                   # Reusable canonical UI components
+│   └── <route>/page.tsx
+├── components/
 │   ├── Button.tsx
 │   ├── Input.tsx
-│   ├── MultiSelect.tsx
+│   ├── AttachmentUploader.tsx
 │   └── ...
-│
 └── project_components/
-└── <route>/
-├── organism/
-│   └── route_organism.jsx
-│
-├── molecule/
-│   └── route_molecule.jsx
-│
-└── graphql/
-├── queries.js
-└── mutations.js
-
----
-
-# Architecture Responsibilities
-
-## 1. Route Layer
-
-Location
-frontend/app/<route>/page.tsx
-
-Rules
-
-• Route files must remain **minimal**
-• Only import and render the organism
-• No state management
-• No business logic
-• No UI composition
-
-Example
-
-```tsx
-import RouteOrganism from "../../project_components/test/organism/route_organism";
-
-export default function Page() {
-  return <RouteOrganism />;
-}
+    └── <route>/
+        ├── organisam/
+        │   └── route_organism.tsx
+        ├── molecule/
+        │   └── route_molecule.tsx
+        └── graphql/
+            ├── queries.ts
+            └── mutations.ts
 ```
 
----
+## Backend Rule
 
-## 2. Organism Layer
+Backend flow:
 
-Location
-frontend/project_components/<route>/organism/route_organism.jsx
-
-Responsibilities
-
-• State management
-• Business logic
-• GraphQL communication (Apollo Client)
-• Data fetching
-• Validation
-• Event handling
-• Pass props to molecule
-
-Rules
-
-• Use `"use client"` when using hooks
-• Do not build UI here
-• Only coordinate logic and data
-
-Example
-
-```jsx
-"use client";
-
-import { useState } from "react";
-import { useQuery } from "@apollo/client";
-import { GET_USERS } from "../graphql/queries";
-import RouteMolecule from "../molecule/route_molecule";
-
-export default function RouteOrganism() {
-  const [value, setValue] = useState("");
-
-  const { data, loading } = useQuery(GET_USERS);
-
-  return (
-    <RouteMolecule
-      value={value}
-      onChange={setValue}
-      users={data?.users || []}
-      loading={loading}
-    />
-  );
-}
+```text
+Client (Next.js)
+       |
+       v
+GraphQL Mutation / Query
+       |
+       v
+apps/<module>/graphql
+       |
+       v
+validators
+       |
+       v
+services
+       |
+       v
+repositories
+       |
+       v
+models
+       |
+       v
+Database
 ```
 
----
+### Backend Structure
 
-## 3. Molecule Layer
-
-Location
-frontend/project_components/<route>/molecule/route_molecule.jsx
-
-Responsibilities
-
-• UI composition
-• Layout and presentation
-• Use canonical components
-
-Rules
-
-• No business logic
-• No API calls
-• Prefer server components
-• Use `"use client"` only if needed for interactivity
-
-Example
-
-```jsx
-import Input from "../../components/Input";
-
-export default function RouteMolecule({ value, onChange, users, loading }) {
-  if (loading) return <div>Loading...</div>;
-
-  return (
-    <div>
-      <Input value={value} onChange={onChange} />
-      {users.map(u => (
-        <div key={u.id}>{u.name}</div>
-      ))}
-    </div>
-  );
-}
+```text
+backend/
+├── config/
+├── project_graphql/
+│   ├── schema.py
+│   └── middleware.py
+├── apps/
+│   ├── auth/
+│   ├── users/
+│   ├── siteadmin/
+│   ├── subsites/
+│   ├── bookings/
+│   ├── notifications/
+│   └── payments/
+├── common/
+├── core/
+└── tests/
 ```
 
----
+Use `project_graphql/` instead of `graphql/` at backend root. A top-level Python package named `graphql` can collide with Graphene's dependency imports.
 
-## 4. Canonical Components
+## Layer Responsibilities
 
-Location
-frontend/components/
+### Route
 
-Rules
+- Only imports and renders the route organism.
+- No state.
+- No business logic.
+- No API calls.
 
-• Must be **reusable and generic**
-• No route-specific logic
-• No page business logic
-• Maintain stable props
+### Organisam
 
-Examples
+- Client component.
+- Owns state and event handling.
+- Calls Apollo hooks or direct fetch helpers.
+- Passes prepared props to molecule.
 
-Button.tsx
-Input.tsx
-MultiSelect.tsx
-AccordionBasic.tsx
+### Molecule
 
----
+- UI composition only.
+- No backend calls.
+- No business rules.
+- Reuses canonical components from `frontend/components`.
 
-# GraphQL Rules
+### Canonical Components
 
-Location
-frontend/project_components/<route>/graphql/
+- Generic and reusable.
+- No route-specific behavior.
+- Stable props.
 
-Files
+### Validators
 
-queries.js → GraphQL queries
-mutations.js → GraphQL mutations
+- Input validation only.
+- No persistence.
 
-Rules
+### Services
 
-• Only GraphQL definitions
-• No React hooks
-• No business logic
-• Apollo hooks must be used **only in organism**
+- Business logic orchestration.
+- Calls repositories.
+- Returns domain data.
 
-Example
+### Repositories
 
-```js
-import { gql } from "@apollo/client";
+- Reads and writes models.
+- No request parsing.
 
-export const GET_USERS = gql`
-  query GetUsers {
-    users {
-      id
-      name
-    }
-  }
-`;
-```
+### Models
 
----
+- Database structure.
+- Query relationships.
 
-# Rules for AI Agents
+## AI Rules
 
 Always follow these rules when generating code.
 
-DO
+### Do
 
-• Keep route files minimal
-• Put state and logic inside organisms
-• Put UI composition inside molecules
-• Use Apollo Client only in organisms
-• Reuse components from frontend/components
-• Follow the exact folder structure
+- Keep route files minimal.
+- Put state and API calls in organisam.
+- Put rendering in molecule.
+- Reuse canonical components.
+- Use validators -> services -> repositories -> models in backend modules.
 
-DO NOT
+### Do Not
 
-• Add logic inside route files
-• Add API calls inside molecules
-• Create route-specific components inside components/
-• Put UI markup inside organisms
-• Use Apollo hooks outside organisms
-
----
-
-# Adding a New Route
-
-Example: `/test`
-
-Step 1 — Create route entry
-
-frontend/app/test/page.tsx
-
-Step 2 — Create organism
-
-frontend/project_components/test/organism/route_organism.jsx
-
-Step 3 — Create molecule
-
-frontend/project_components/test/molecule/route_molecule.jsx
-
-Step 4 — Add GraphQL (if needed)
-
-frontend/project_components/test/graphql/queries.js
-frontend/project_components/test/graphql/mutations.js
-
-Example route file
-
-```tsx
-import RouteOrganism from "../../project_components/test/organism/route_organism";
-
-export default function Page() {
-  return <RouteOrganism />;
-}
-```
-
----
-
-# Mandatory Folder Rules
-
-All route logic must follow this structure:
-
-frontend/app/<route>/page.tsx
-frontend/project_components/<route>/organism/route_organism.jsx
-frontend/project_components/<route>/molecule/route_molecule.jsx
-frontend/project_components/<route>/graphql/queries.js
-frontend/project_components/<route>/graphql/mutations.js
-
-Rules
-
-• Do not create alternative structures
-• Do not duplicate components
-• Always reuse canonical components
+- Put logic in route files.
+- Put API calls in molecules.
+- Put persistence logic in validators.
+- Put request parsing in repositories.
+- Create another root backend package named `graphql`.

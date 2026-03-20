@@ -1,0 +1,1 @@
+"""Site admin GraphQL queries belong here."""

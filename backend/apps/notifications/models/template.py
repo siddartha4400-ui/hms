@@ -1,0 +1,1 @@
+"""Notification template models belong here."""

@@ -1,0 +1,1 @@
+"""Availability service layer placeholder."""

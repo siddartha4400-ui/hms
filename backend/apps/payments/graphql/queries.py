@@ -1,0 +1,1 @@
+"""Payment GraphQL queries belong here."""

@@ -1,0 +1,1 @@
+"""Booking GraphQL queries belong here."""

@@ -1,0 +1,1 @@
+"""Auth domain user model placeholders live here during the refactor."""

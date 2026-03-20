@@ -1,0 +1,1 @@
+"""Notification GraphQL queries belong here."""

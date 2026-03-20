@@ -1,0 +1,1 @@
+"""Site admin GraphQL mutations belong here."""

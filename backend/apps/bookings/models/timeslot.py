@@ -1,0 +1,1 @@
+"""Timeslot models belong here."""

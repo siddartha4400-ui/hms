@@ -1,0 +1,1 @@
+"""Notification GraphQL mutations belong here."""

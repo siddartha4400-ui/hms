@@ -1,0 +1,1 @@
+"""Timeslot validation rules belong here."""

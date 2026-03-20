@@ -1,0 +1,1 @@
+"""Booking validation rules belong here."""

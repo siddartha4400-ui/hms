@@ -1,0 +1,1 @@
+"""Booking repository layer placeholder."""
