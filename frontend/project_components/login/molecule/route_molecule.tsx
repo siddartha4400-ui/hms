@@ -1,341 +1,342 @@
-import React from "react";
-import { FiUser, FiLock, FiLogIn, FiLayers } from "react-icons/fi";
-import ThemeToggle from "@/components/ThemeToggle";
+'use client';
 
-type Props = {
-  username: string;
-  setUsername: (v: string) => void;
-  password: string;
-  setPassword: (v: string) => void;
-  error: string;
-  handleLogin: (e: React.FormEvent) => void;
-};
+import React, { useState } from 'react';
+import { FiLock, FiLogIn, FiMail, FiPhone, FiKey, FiLoader } from 'react-icons/fi';
 
-export default function RouteMolecule({
-  username,
-  setUsername,
-  password,
-  setPassword,
-  error,
-  handleLogin,
-}: Props) {
-  return (
-    <div
-      className="min-h-screen w-full relative flex items-center justify-center overflow-hidden text-sm"
-      style={{ background: "var(--bg-base)" }}
-    >
-      {/* ── Theme toggle — floating top-right ─────────────────────────── */}
-      <div className="absolute top-5 right-5 z-20">
-        <ThemeToggle compact />
-      </div>
-      {/* ── Background: hotel aerial photo + layered gradients ──────────── */}
-      <div
-        className="absolute inset-0 z-0 bg-cover bg-center"
-        style={{
-          backgroundImage:
-            "url('https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9?q=80&w=2200&auto=format&fit=crop')",
-          opacity: 0.18,
-        }}
-      />
-      {/* Dark navy overlay */}
-      <div
-        className="absolute inset-0 z-0"
-        style={{
-          background:
-            "linear-gradient(135deg, color-mix(in srgb, var(--bg-base) 97%, transparent) 0%, color-mix(in srgb, var(--bg-surface) 90%, transparent) 60%, rgba(6,182,212,0.06) 100%)",
-        }}
-      />
-      {/* Subtle diagonal grid */}
-      <div
-        className="absolute inset-0 z-0"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle at 1px 1px, rgba(6,182,212,0.06) 1px, transparent 0)",
-          backgroundSize: "28px 28px",
-        }}
-      />
-      {/* Ambient cyan orb top-right */}
-      <div
-        className="absolute top-0 right-0 w-96 h-96 z-0 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(circle at 80% 20%, rgba(6,182,212,0.10) 0%, transparent 70%)",
-        }}
-      />
-      {/* Ambient orange orb bottom-left */}
-      <div
-        className="absolute bottom-0 left-0 w-80 h-80 z-0 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(circle at 20% 80%, rgba(249,115,22,0.08) 0%, transparent 65%)",
-        }}
-      />
+type LoginMethod = 'password' | 'email_otp' | 'whatsapp_otp';
+type Step = 'select' | 'input' | 'verify';
 
-      {/* ── Left panel — platform stats (desktop only) ────────────────── */}
-      <div className="absolute left-10 top-1/2 -translate-y-1/2 z-10 hidden xl:flex flex-col gap-4 max-w-[200px]">
-        <div className="mb-4">
-          <div className="flex items-center gap-2 mb-1">
-            <FiLayers style={{ color: "var(--brand)" }} className="text-base" />
-            <span
-              className="text-base font-bold tracking-tight"
-              style={{ color: "var(--text-primary)" }}
-            >
-              HotelSphere
-            </span>
-          </div>
-          <p
-            className="text-[10px] uppercase tracking-[.2em]"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Hospitality Platform
-          </p>
-        </div>
+interface Props {
+  onLogin: (method: LoginMethod, credentials: any) => Promise<{ success: boolean; message?: string; token?: string }>;
+  onError: (message: string) => void;
+  error?: string;
+  loading?: boolean;
+}
 
-        {[
-          { label: "Hotels Listed",   value: "240+", color: "var(--brand)"   },
-          { label: "Cities Covered",  value: "38",   color: "var(--action)"  },
-          { label: "Bookings Today",  value: "1,842",color: "var(--positive)"},
-          { label: "Guest Satisfaction", value: "4.6★", color: "var(--warning)" },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="flex flex-col gap-1 rounded-xl px-4 py-3"
-            style={{
-              background: "var(--bg-surface)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <span
-              className="text-lg font-bold leading-none"
-              style={{ color: stat.color }}
-            >
-              {stat.value}
-            </span>
-            <span
-              className="text-[10px] uppercase tracking-widest"
-              style={{ color: "var(--text-muted)" }}
-            >
-              {stat.label}
-            </span>
-          </div>
-        ))}
-      </div>
+export default function RouteMolecule({ onLogin, onError, error = '', loading = false }: Props) {
+  const [step, setStep] = useState<Step>('select');
+  const [method, setMethod] = useState<LoginMethod>('password');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [otp, setOtp] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
+  const [localLoading, setLocalLoading] = useState(false);
 
-      {/* ── Login Card ────────────────────────────────────────────────── */}
-      <div className="relative z-10 w-full max-w-[380px] mx-4 animate-fade-in-up">
-        {/* Top accent line */}
-        <div
-          className="h-[2px] w-full rounded-t-2xl"
-          style={{
-            background:
-              "linear-gradient(90deg, transparent, var(--brand), var(--action), transparent)",
-          }}
-        />
+  const isLoading = loading || localLoading;
 
-        <div
-          className="rounded-b-2xl rounded-t-none px-8 py-8"
-          style={{
-            background: "var(--bg-glass)",
-            backdropFilter: "blur(24px)",
-            border: "1px solid var(--border)",
-            borderTop: "none",
-            boxShadow: "0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(6,182,212,0.05)",
-          }}
-        >
-          {/* Brand header */}
-          <div className="mb-8 text-center">
-            <div
-              className="w-12 h-12 rounded-xl mx-auto mb-4 flex items-center justify-center"
-              style={{
-                background: "var(--brand-dim)",
-                border: "1px solid var(--brand-border)",
-              }}
-            >
-              <FiLayers style={{ color: "var(--brand)" }} className="text-xl" />
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStatusMessage('');
+    setLocalLoading(true);
+    try {
+      const result = await onLogin('password', { email, password });
+      if (!result.success) {
+        onError(result.message || 'Login failed');
+      }
+    } finally {
+      setLocalLoading(false);
+    }
+  };
+
+  const handleRequestOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStatusMessage('');
+    setLocalLoading(true);
+    try {
+      const result = await onLogin(method, {
+        identifier: method === 'email_otp' ? email : mobileNumber,
+      });
+      if (result.success) {
+        setStatusMessage(result.message || 'OTP sent successfully');
+        setStep('verify');
+      } else {
+        onError(result.message || 'Failed to send OTP');
+      }
+    } finally {
+      setLocalLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStatusMessage('');
+    setLocalLoading(true);
+    try {
+      const result = await onLogin(method, {
+        identifier: method === 'email_otp' ? email : mobileNumber,
+        otp,
+      });
+      if (!result.success) {
+        onError(result.message || 'OTP verification failed');
+      }
+    } finally {
+      setLocalLoading(false);
+    }
+  };
+
+  if (step === 'select') {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+        <div className="w-full max-w-md">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="inline-block p-3 bg-blue-500/20 rounded-lg mb-4">
+              <FiLogIn className="text-2xl text-blue-400" />
             </div>
-            <h1
-              className="text-xl font-bold tracking-tight"
-              style={{ color: "var(--text-primary)" }}
+            <h1 className="text-3xl font-bold text-white mb-2">HotelSphere</h1>
+            <p className="text-slate-400">Choose your login method</p>
+          </div>
+
+          {/* Login Methods */}
+          <div className="space-y-3">
+            {/* Password Login */}
+            <button
+              onClick={() => {
+                setMethod('password');
+                setStep('input');
+              }}
+              className="w-full p-4 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700 rounded-lg transition-all group"
             >
-              HotelSphere
-            </h1>
-            <p
-              className="text-[10px] mt-1 uppercase tracking-[.2em]"
-              style={{ color: "var(--text-muted)" }}
+              <div className="flex items-center gap-3">
+                <FiKey className="text-xl text-blue-400 group-hover:scale-110 transition-transform" />
+                <div className="text-left">
+                  <div className="font-semibold text-white">Password Login</div>
+                  <div className="text-sm text-slate-400">Use your email and password</div>
+                </div>
+              </div>
+            </button>
+
+            {/* Email OTP */}
+            <button
+              onClick={() => {
+                setMethod('email_otp');
+                setStep('input');
+              }}
+              className="w-full p-4 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700 rounded-lg transition-all group"
             >
-              Management Portal
+              <div className="flex items-center gap-3">
+                <FiMail className="text-xl text-purple-400 group-hover:scale-110 transition-transform" />
+                <div className="text-left">
+                  <div className="font-semibold text-white">Email OTP</div>
+                  <div className="text-sm text-slate-400">6-digit code sent to email</div>
+                </div>
+              </div>
+            </button>
+
+            {/* WhatsApp OTP */}
+            <button
+              onClick={() => {
+                setMethod('whatsapp_otp');
+                setStep('input');
+              }}
+              className="w-full p-4 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700 rounded-lg transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <FiPhone className="text-xl text-green-400 group-hover:scale-110 transition-transform" />
+                <div className="text-left">
+                  <div className="font-semibold text-white">WhatsApp OTP</div>
+                  <div className="text-sm text-slate-400">6-digit code sent via WhatsApp</div>
+                </div>
+              </div>
+            </button>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-8 text-center text-sm text-slate-400">
+            Don't have an account?{' '}
+            <a href="/signup" className="text-blue-400 hover:text-blue-300 font-semibold">
+              Sign up
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'verify') {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+        <div className="w-full max-w-md">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="inline-block p-3 bg-blue-500/20 rounded-lg mb-4">
+              <FiLock className="text-2xl text-blue-400" />
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-2">Verify OTP</h1>
+            <p className="text-slate-400">
+              Enter the 6-digit code sent to {method === 'email_otp' ? email : mobileNumber}
             </p>
           </div>
 
-          {/* Role tabs */}
-          <div
-            className="flex p-1 rounded-lg mb-6 gap-1"
-            style={{ background: "var(--bg-chip)", border: "1px solid var(--border)" }}
-          >
-            {["Admin", "Manager", "Staff"].map((role, i) => (
-              <button
-                key={role}
-                type="button"
-                className="flex-1 py-1.5 rounded-md text-[10px] uppercase tracking-widest transition-all duration-200"
-                style={
-                  i === 0
-                    ? {
-                        background: "var(--brand-dim)",
-                        color: "var(--brand-light)",
-                        border: "1px solid var(--brand-border)",
-                      }
-                    : { color: "var(--text-muted)" }
-                }
-              >
-                {role}
-              </button>
-            ))}
-          </div>
-
-          <form onSubmit={handleLogin} className="flex flex-col gap-3">
-            {/* Username */}
-            <div className="relative group">
-              <FiUser
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none transition-colors"
-                style={{ color: "var(--text-muted)" }}
-              />
-              <input
-                id="login-username"
-                type="text"
-                placeholder="Username or Email"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                autoComplete="username"
-                className="w-full pl-9 pr-3 py-2.5 rounded-lg text-sm outline-none transition-all duration-200"
-                style={{
-                  background: "var(--bg-input)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-primary)",
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.border = "1px solid var(--brand-border)";
-                  e.currentTarget.style.boxShadow = "0 0 0 3px var(--brand-dim)";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.border = "1px solid var(--border)";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              />
-            </div>
-
-            {/* Password */}
-            <div className="relative group">
-              <FiLock
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none"
-                style={{ color: "var(--text-muted)" }}
-              />
-              <input
-                id="login-password"
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                className="w-full pl-9 pr-3 py-2.5 rounded-lg text-sm outline-none transition-all duration-200"
-                style={{
-                  background: "var(--bg-input)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-primary)",
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.border = "1px solid var(--brand-border)";
-                  e.currentTarget.style.boxShadow = "0 0 0 3px var(--brand-dim)";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.border = "1px solid var(--border)";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              />
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                type="button"
-                className="text-[11px] transition-colors"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--brand)")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
-              >
-                Forgot password?
-              </button>
-            </div>
-
+          {/* OTP Verification Form */}
+          <form onSubmit={handleVerifyOtp} className="space-y-6">
             {error && (
-              <div
-                className="rounded-lg p-3 text-xs text-center animate-fade-in"
-                style={{
-                  background: "var(--action-dim)",
-                  border: "1px solid var(--action-border)",
-                  color: "var(--danger)",
-                }}
-              >
+              <div className="px-4 py-3 rounded-lg border border-rose-400/40 bg-rose-500/10 text-rose-200 text-sm animate-pulse">
                 {error}
               </div>
             )}
+            {statusMessage && (
+              <div className="px-4 py-3 rounded-lg border border-emerald-400/40 bg-emerald-500/10 text-emerald-200 text-sm">
+                {statusMessage}
+              </div>
+            )}
+            <input
+              type="text"
+              maxLength={6}
+              placeholder="000000"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+              disabled={isLoading}
+              required
+              className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-center text-2xl font-bold tracking-widest text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none disabled:opacity-50"
+            />
 
             <button
-              id="login-submit"
               type="submit"
-              className="mt-2 w-full py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all duration-300 group"
-              style={{
-                background: "linear-gradient(135deg, var(--action), var(--action-light))",
-                color: "#fff",
-                boxShadow: "0 4px 20px var(--action-dim)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.filter = "brightness(1.1)";
-                e.currentTarget.style.boxShadow = "0 6px 28px var(--action-dim)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.filter = "";
-                e.currentTarget.style.boxShadow = "0 4px 20px var(--action-dim)";
-              }}
+              disabled={isLoading || otp.length !== 6}
+              className="w-full py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all flex items-center justify-center gap-2"
             >
-              <span>Sign In to Platform</span>
-              <FiLogIn className="text-sm group-hover:translate-x-1 transition-transform" />
+              {isLoading && <FiLoader className="animate-spin" />}
+              {isLoading ? 'Verifying...' : 'Verify OTP'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setStep('select');
+                setOtp('');
+              }}
+              disabled={isLoading}
+              className="w-full text-slate-400 hover:text-white transition-colors"
+            >
+              Back to login methods
             </button>
           </form>
 
-          {/* Demo hint */}
-          <div
-            className="mt-6 pt-5 text-center"
-            style={{ borderTop: "1px solid var(--border)" }}
-          >
-            <p className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "var(--text-muted)" }}>
-              Demo Access
-            </p>
-            <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
-              Username:{" "}
-              <code
-                className="font-mono px-1.5 py-0.5 rounded text-xs"
-                style={{ background: "var(--brand-dim)", color: "var(--brand)" }}
-              >
-                admin
-              </code>{" "}
-              · Password:{" "}
-              <code
-                className="font-mono px-1.5 py-0.5 rounded text-xs"
-                style={{ background: "var(--brand-dim)", color: "var(--brand)" }}
-              >
-                admin
-              </code>
-            </p>
+          {/* Resend OTP */}
+          <div className="mt-6 text-center text-sm text-slate-400">
+            Didn't receive the code?{' '}
+            <button className="text-blue-400 hover:text-blue-300 font-semibold">Resend</button>
           </div>
         </div>
+      </div>
+    );
+  }
 
-        <p
-          className="text-center text-[10px] mt-5 uppercase tracking-widest"
-          style={{ color: "var(--text-muted)" }}
+  // step === 'input'
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+      <div className="w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="inline-block p-3 bg-blue-500/20 rounded-lg mb-4">
+            {method === 'password' ? (
+              <FiKey className="text-2xl text-blue-400" />
+            ) : method === 'email_otp' ? (
+              <FiMail className="text-2xl text-purple-400" />
+            ) : (
+              <FiPhone className="text-2xl text-green-400" />
+            )}
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2">
+            {method === 'password'
+              ? 'Password Login'
+              : method === 'email_otp'
+              ? 'Email OTP Login'
+              : 'WhatsApp OTP Login'}
+          </h1>
+        </div>
+
+        {/* Login Form */}
+        <form
+          onSubmit={method === 'password' ? handlePasswordLogin : handleRequestOtp}
+          className="space-y-6"
         >
-          Trusted by 120+ hotel groups across India
-        </p>
+          {error && (
+            <div className="px-4 py-3 rounded-lg border border-rose-400/40 bg-rose-500/10 text-rose-200 text-sm animate-pulse">
+              {error}
+            </div>
+          )}
+          {statusMessage && (
+            <div className="px-4 py-3 rounded-lg border border-emerald-400/40 bg-emerald-500/10 text-emerald-200 text-sm">
+              {statusMessage}
+            </div>
+          )}
+          {(method === 'password' || method === 'email_otp') && (
+            <input
+              type="email"
+              placeholder="Email address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={isLoading}
+              required
+              className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none disabled:opacity-50"
+            />
+          )}
+
+          {method === 'whatsapp_otp' && (
+            <input
+              type="tel"
+              placeholder="Mobile number (e.g., +1 234 567 8900)"
+              value={mobileNumber}
+              onChange={(e) => setMobileNumber(e.target.value)}
+              disabled={isLoading}
+              required
+              className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none disabled:opacity-50"
+            />
+          )}
+
+          {method === 'password' && (
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoading}
+              required
+              className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none disabled:opacity-50"
+            />
+          )}
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all flex items-center justify-center gap-2"
+          >
+            {isLoading && <FiLoader className="animate-spin" />}
+            {isLoading ? 'Processing...' : 'Continue'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setStep('select');
+              setEmail('');
+              setPassword('');
+              setMobileNumber('');
+            }}
+            disabled={isLoading}
+            className="w-full text-slate-400 hover:text-white transition-colors"
+          >
+            Back to login methods
+          </button>
+        </form>
+
+        {/* Footer Links */}
+        <div className="mt-8 space-y-2 text-center text-sm">
+          <div>
+            <a href="/forgot-password" className="text-blue-400 hover:text-blue-300">
+              Forgot password?
+            </a>
+          </div>
+          <div className="text-slate-400">
+            Don't have an account?{' '}
+            <a href="/signup" className="text-blue-400 hover:text-blue-300 font-semibold">
+              Sign up
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   );

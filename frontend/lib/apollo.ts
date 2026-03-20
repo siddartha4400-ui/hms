@@ -22,13 +22,26 @@
 
 // frontend/lib/apollo.ts
 import { ApolloClient, InMemoryCache, HttpLink } from '@apollo/client';
+import { setContext } from '@apollo/client/link/context';
 
-const client = new ApolloClient({
-  link: new HttpLink({
+const httpLink = new HttpLink({
     uri: process.env.NEXT_PUBLIC_API_URL, // e.g., http://localhost:8000/graphql/
     // Send cookies (e.g. sessionid / csrftoken) if the server relies on them
     credentials: "include",
-  }),
+  });
+
+const authLink = setContext((_, { headers }) => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+  return {
+    headers: {
+      ...headers,
+      ...(token ? { Authorization: `JWT ${token}` } : {}),
+    },
+  };
+});
+
+const client = new ApolloClient({
+  link: authLink.concat(httpLink),
   cache: new InMemoryCache(),
 });
 

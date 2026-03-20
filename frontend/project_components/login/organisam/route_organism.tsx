@@ -1,86 +1,110 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { gql } from "@apollo/client";
-import client from "@/lib/apollo";
-import { useRouter } from "next/navigation";
-import RouteMolecule from "../molecule/route_molecule";
+import React, { useState } from 'react';
+import { useMutation } from '@apollo/client/react';
+import { useRouter } from 'next/navigation';
+import {
+  LOGIN_MUTATION,
+  VERIFY_LOGIN_OTP_MUTATION,
+} from '../graphql/operations';
+import RouteMolecule from '../molecule/route_molecule';
 
-const LOGIN_MUTATION = gql`
-  mutation login($username: String!, $password: String!) {
-    tokenAuth(username: $username, password: $password) {
-      token
-    }
-  }
-`;
-
-type LoginResult = {
-  tokenAuth: {
-    token: string;
-  };
-};
+type LoginMethod = 'password' | 'email_otp' | 'whatsapp_otp';
 
 export default function RouteOrganism() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const [loginMutation, { loading: loginLoading }] = useMutation(LOGIN_MUTATION);
+  const [verifyOtpMutation, { loading: verifyLoading }] = useMutation(VERIFY_LOGIN_OTP_MUTATION);
 
-    // Magic Bypass for demonstration purposes
-    if (username.toLowerCase() === "admin" && password === "admin") {
-      localStorage.setItem("token", "hotel-demo-token");
-      router.push("/dashboard");
-      return;
-    }
+  const handleLogin = async (
+    method: LoginMethod,
+    credentials: Record<string, string>,
+  ): Promise<{ success: boolean; message?: string; token?: string; refreshToken?: string }> => {
+    setError('');
 
     try {
-      const result = await client.mutate<LoginResult>({
-        mutation: LOGIN_MUTATION,
-        variables: { username, password },
-      });
+      // ── Password login ─────────────────────────────────────────
+      if (method === 'password') {
+        const { data } = await loginMutation({
+          variables: {
+            method: 'password',
+            email: credentials.email,
+            password: credentials.password,
+          },
+        });
 
-      const token = result.data?.tokenAuth?.token;
-      if (token) {
-        localStorage.setItem("token", token);
-        router.push("/dashboard");
-      } else {
-        setError("Invalid credentials");
+        const result = (data as any)?.login;
+        if (result?.success && result?.token) {
+          localStorage.setItem('authToken', result.token);
+          if (result?.refreshToken) {
+            localStorage.setItem('refreshToken', result.refreshToken);
+          }
+          router.replace('/dashboard');
+          return { success: true, token: result.token, refreshToken: result?.refreshToken };
+        }
+        return { success: false, message: result?.message || 'Login failed' };
       }
-    } catch (err) {
-      // Improve visibility for GraphQL errors (CombinedGraphQLErrors)
-      // err (ApolloError) often contains graphQLErrors and networkError
-      // Show first graphQLError message to the user when available
-      // and log the entire error for debugging.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const anyErr: any = err;
-      console.error("Login error (full):", anyErr);
 
-      if (anyErr?.graphQLErrors && anyErr.graphQLErrors.length > 0) {
-        // Combine messages (sometimes there are multiple errors)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const messages = anyErr.graphQLErrors.map((g: any) => g.message).join("; ");
-        setError(messages);
-      } else if (anyErr?.networkError) {
-        setError(`Unable to connect to the Platform Server. (${anyErr.networkError.statusCode || anyErr.networkError.message || "404"})`);
-      } else if (anyErr?.message) {
-        setError(anyErr.message);
-      } else {
-        setError("Login failed. Please check your credentials.");
+      // ── OTP request (step 1) ────────────────────────────────────
+      if (method === 'email_otp' || method === 'whatsapp_otp') {
+        // No OTP yet → request one
+        if (!credentials.otp) {
+          const isEmail = method === 'email_otp';
+          const { data } = await loginMutation({
+            variables: {
+              method,
+              ...(isEmail
+                ? { email: credentials.identifier }
+                : { mobileNumber: credentials.identifier }),
+            },
+          });
+
+          const result = (data as any)?.login;
+          if (result?.success) {
+            return { success: true, message: result.message || 'OTP sent' };
+          }
+          return { success: false, message: result?.message || 'Failed to send OTP' };
+        }
+
+        // ── OTP verify (step 2) ───────────────────────────────────
+        const otpType = method === 'email_otp' ? 'email' : 'whatsapp';
+        const { data } = await verifyOtpMutation({
+          variables: {
+            identifier: credentials.identifier,
+            otp: credentials.otp,
+            otpType,
+          },
+        });
+
+        const result = (data as any)?.verifyLoginOtp;
+        if (result?.success && result?.token) {
+          localStorage.setItem('authToken', result.token);
+          if (result?.refreshToken) {
+            localStorage.setItem('refreshToken', result.refreshToken);
+          }
+          router.replace('/dashboard');
+          return { success: true, token: result.token, refreshToken: result?.refreshToken };
+        }
+        return { success: false, message: result?.message || 'OTP verification failed' };
       }
+
+      return { success: false, message: 'Unknown login method' };
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'An unexpected error occurred';
+      setError(errorMsg);
+      return { success: false, message: errorMsg };
     }
   };
 
   return (
     <RouteMolecule
-      username={username}
-      setUsername={setUsername}
-      password={password}
-      setPassword={setPassword}
+      onLogin={handleLogin}
+      onError={setError}
       error={error}
-      handleLogin={handleLogin}
+      loading={loginLoading || verifyLoading}
     />
   );
 }
+

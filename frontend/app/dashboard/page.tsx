@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation } from "@apollo/client/react";
 import {
   FiHome, FiCalendar, FiUsers, FiTrendingUp,
   FiAlertCircle, FiStar, FiMapPin, FiCheckCircle,
@@ -9,6 +10,7 @@ import {
   FiBarChart2, FiShield, FiZap,
 } from "react-icons/fi";
 import ThemeToggle from "@/components/ThemeToggle";
+import { LOGOUT_MUTATION } from "@/project_components/login/graphql/operations";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type AlertRow = {
@@ -116,16 +118,28 @@ export default function DashboardPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"alerts" | "hotels">("alerts");
+  const [logoutMutation, { loading: logoutLoading }] = useMutation(LOGOUT_MUTATION);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("authToken");
     if (!token) { router.push("/login"); }
     else { setIsLoading(false); }
   }, [router]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    router.push("/login");
+  const handleLogout = async () => {
+    const refreshToken = localStorage.getItem("refreshToken");
+
+    if (refreshToken) {
+      try {
+        await logoutMutation({ variables: { refreshToken } });
+      } catch {
+        // Always clear local tokens, even if server revoke fails.
+      }
+    }
+
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("refreshToken");
+    router.replace("/login");
   };
 
   if (isLoading) {
@@ -193,10 +207,12 @@ export default function DashboardPage() {
           <button
             id="dashboard-logout"
             onClick={handleLogout}
+            disabled={logoutLoading}
             className="text-[11px] uppercase tracking-widest rounded-lg px-4 py-1.5 transition-all duration-200"
             style={{
               color: "var(--text-muted)",
               border: "1px solid var(--border)",
+              opacity: logoutLoading ? 0.6 : 1,
             }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLButtonElement).style.color = "var(--brand)";
@@ -207,7 +223,7 @@ export default function DashboardPage() {
               (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border)";
             }}
           >
-            Sign Out
+            {logoutLoading ? "Signing Out..." : "Sign Out"}
           </button>
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold cursor-pointer transition-all"
