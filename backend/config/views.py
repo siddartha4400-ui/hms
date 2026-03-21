@@ -33,3 +33,15 @@ class TestEmailView(View):
 
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+class SubsiteAvailabilityView(View):
+    def get(self, request):
+        return JsonResponse(
+            {
+                'success': True,
+                'site_available': True,
+                'subsite_key': getattr(request, 'subsite_key', None),
+                'company_id': getattr(request, 'company_id', None),
+            }
+        )

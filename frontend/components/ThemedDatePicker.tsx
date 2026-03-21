@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FiCalendar, FiChevronLeft, FiChevronRight, FiX } from "react-icons/fi";
+import { formatDateDDMMYYYY, parseFlexibleDateToISO } from "@/lib/date-format";
 
 type Props = {
   value?: string;
@@ -33,46 +34,10 @@ function parseDate(value?: string): Date | null {
   return parsed;
 }
 
-function parseFlexibleDate(input: string): string | null {
-  const raw = input.trim();
-  if (!raw) {
-    return "";
-  }
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    const parsed = parseDate(raw);
-    return parsed ? raw : null;
-  }
-
-  const slashOrDash = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
-  if (slashOrDash) {
-    const [, dd, mm, yyyy] = slashOrDash;
-    const day = Number(dd);
-    const month = Number(mm) - 1;
-    const year = Number(yyyy);
-    const parsed = new Date(year, month, day);
-    if (
-      parsed.getFullYear() === year &&
-      parsed.getMonth() === month &&
-      parsed.getDate() === day
-    ) {
-      return toDateString(year, month, day);
-    }
-    return null;
-  }
-
-  const looseParsed = new Date(raw);
-  if (!Number.isNaN(looseParsed.getTime())) {
-    return toDateString(looseParsed.getFullYear(), looseParsed.getMonth(), looseParsed.getDate());
-  }
-
-  return null;
-}
-
 export default function ThemedDatePicker({
   value,
   onChange,
-  placeholder = "Select date",
+  placeholder = "DD-MM-YYYY",
   disabled = false,
   className = "",
 }: Props) {
@@ -96,7 +61,7 @@ export default function ThemedDatePicker({
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    setInputValue(value || "");
+    setInputValue(value ? formatDateDDMMYYYY(value) : "");
   }, [value]);
 
   useEffect(() => {
@@ -143,9 +108,7 @@ export default function ThemedDatePicker({
     cells.push({ day: cells.length - (firstDay + daysInMonth) + 1, monthOffset: 1 });
   }
 
-  const displayValue = selectedDate
-    ? selectedDate.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
-    : "";
+  const displayValue = selectedDate ? formatDateDDMMYYYY(value) : "";
 
   const moveMonth = (delta: number) => {
     const next = new Date(viewYear, viewMonth + delta, 1);
@@ -168,22 +131,22 @@ export default function ThemedDatePicker({
     const date = new Date(viewYear, viewMonth + offset, day);
     const nextValue = toDateString(date.getFullYear(), date.getMonth(), date.getDate());
     onChange(nextValue);
-    setInputValue(nextValue);
+    setInputValue(formatDateDDMMYYYY(nextValue));
     setInputError("");
     setOpen(false);
   };
 
   const handleTypedInputBlur = () => {
-    const parsed = parseFlexibleDate(inputValue);
+    const parsed = parseFlexibleDateToISO(inputValue);
 
     if (parsed === null) {
-      setInputError("Use YYYY-MM-DD or DD/MM/YYYY");
+      setInputError("Use DD-MM-YYYY or DD/MM/YYYY");
       return;
     }
 
     setInputError("");
     onChange(parsed);
-    setInputValue(parsed);
+    setInputValue(parsed ? formatDateDDMMYYYY(parsed) : "");
 
     const parsedDate = parseDate(parsed);
     if (parsedDate) {
@@ -196,7 +159,7 @@ export default function ThemedDatePicker({
     const today = new Date();
     const nextValue = toDateString(today.getFullYear(), today.getMonth(), today.getDate());
     onChange(nextValue);
-    setInputValue(nextValue);
+    setInputValue(formatDateDDMMYYYY(nextValue));
     setInputError("");
     setViewYear(today.getFullYear());
     setViewMonth(today.getMonth());

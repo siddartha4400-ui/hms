@@ -27,6 +27,16 @@ interface HeaderProfileData {
 export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
+  const navLinks = React.useMemo(
+    () => [
+      { label: 'Overview', href: '/dashboard' },
+      { label: 'Subsites', href: '/subsites' },
+      { label: 'Cities', href: '/cities' },
+      { label: 'Bookings', href: '/bookings' },
+      { label: 'My Bookings', href: '/my-bookings' },
+    ],
+    [],
+  );
   const [profileIdentity, setProfileIdentity] = React.useState({
     avatarUrl: '',
     initials: 'U',
@@ -38,6 +48,24 @@ export default function Header() {
     skip: pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/dashboard'),
   });
   const [logoutMutation, { loading: logoutLoading }] = useMutation(LOGOUT_MUTATION);
+  const isActiveNav = React.useCallback(
+    (href: string) => {
+      if (href === '/subsites') {
+        return pathname.startsWith('/subsites') || pathname.startsWith('/subsite-dashboard');
+      }
+      if (href === '/cities') {
+        return pathname.startsWith('/cities');
+      }
+      if (href === '/bookings') {
+        return pathname.startsWith('/bookings');
+      }
+      if (href === '/my-bookings') {
+        return pathname.startsWith('/my-bookings');
+      }
+      return pathname.startsWith(href);
+    },
+    [pathname],
+  );
 
   const handleLogout = React.useCallback(async () => {
     const refreshToken = localStorage.getItem('refreshToken');
@@ -90,7 +118,7 @@ export default function Header() {
 
   return (
     <nav
-      className="fixed top-0 left-0 right-0 z-50 px-6 py-3 flex justify-between items-center"
+      className="fixed top-0 left-0 right-0 z-50 px-3 md:px-6 py-2.5 md:py-3 flex justify-between items-center gap-2"
       style={{
         background: 'var(--bg-navbar)',
         backdropFilter: 'blur(16px)',
@@ -110,7 +138,7 @@ export default function Header() {
         </div>
         <div className="leading-none">
           <span className="block text-sm font-bold" style={{ color: 'var(--text-primary)' }}>HotelSphere</span>
-          <span className="block text-[9px] uppercase tracking-[.2em]" style={{ color: 'var(--text-muted)' }}>
+          <span className="hidden md:block text-[9px] uppercase tracking-[.2em]" style={{ color: 'var(--text-muted)' }}>
             Hospitality Platform
           </span>
         </div>
@@ -118,18 +146,15 @@ export default function Header() {
 
       {/* Navigation */}
       <div className="hidden md:flex items-center gap-7">
-        {[
-          { label: 'Overview',   href: '/dashboard' },
-          { label: 'Subsites',   href: '/subsites' },
-        ].map((link) => (
+        {navLinks.map((link) => (
           <Link
             key={link.label}
             href={link.href}
             className="text-[11px] uppercase tracking-widest no-underline transition-all duration-200 px-2 py-1 rounded-md"
             style={{
-              color: pathname.startsWith(link.href) ? 'var(--brand)' : 'var(--text-muted)',
-              background: pathname.startsWith(link.href) ? 'var(--brand-dim)' : 'transparent',
-              border: pathname.startsWith(link.href) ? '1px solid var(--brand-border)' : '1px solid transparent',
+              color: isActiveNav(link.href) ? 'var(--brand)' : 'var(--text-muted)',
+              background: isActiveNav(link.href) ? 'var(--brand-dim)' : 'transparent',
+              border: isActiveNav(link.href) ? '1px solid var(--brand-border)' : '1px solid transparent',
             }}
           >
             {link.label}
@@ -137,12 +162,26 @@ export default function Header() {
         ))}
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="md:hidden min-w-[110px]">
+        <select
+          value={navLinks.find((item) => isActiveNav(item.href))?.href || '/dashboard'}
+          onChange={(e) => router.push(e.target.value)}
+          className="h-9 rounded-lg px-2 text-xs w-full"
+          style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+          aria-label="Navigate sections"
+        >
+          {navLinks.map((link) => (
+            <option key={link.href} value={link.href}>{link.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex items-center gap-2 md:gap-3">
         <ThemeToggle compact />
         <button
           onClick={handleLogout}
           disabled={logoutLoading}
-          className="text-[11px] uppercase tracking-widest rounded-lg px-4 py-1.5 transition-all duration-200"
+          className="text-[10px] md:text-[11px] uppercase tracking-widest rounded-lg px-2.5 md:px-4 py-1.5 transition-all duration-200"
           style={{
             color: 'var(--text-secondary)',
             border: '1px solid var(--border)',

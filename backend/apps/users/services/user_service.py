@@ -1,8 +1,9 @@
 """User services for business logic."""
 from apps.users.repositories import UserRepository, OTPRepository, PasswordResetRepository
 from apps.users.validators import UserValidator
+from apps.users.permissions import NORMAL_USER_GROUP, get_group_from_role
 from common.exceptions import ApiException
-from django.contrib.auth.models import User as DjangoUser
+from django.contrib.auth.models import User as DjangoUser, Group
 from django.core.mail import send_mail
 from django.conf import settings
 import logging
@@ -77,6 +78,26 @@ def _send_whatsapp_otp(mobile_number: str, otp_code: str) -> None:
         raise ApiException(f"Failed to send WhatsApp OTP: {result.get('error')}")
 
 
+def _assign_user_group(django_user, user_profile=None):
+    """Assign user to appropriate group based on their role."""
+    # Don't reassign if user already has groups
+    if django_user.groups.exists():
+        return
+    
+    # Determine group based on role
+    if user_profile and user_profile.role is not None:
+        group_name = get_group_from_role(user_profile.role)
+    else:
+        # Default to normal user
+        group_name = NORMAL_USER_GROUP
+    
+    try:
+        group = Group.objects.get(name=group_name)
+        django_user.groups.add(group)
+    except Group.DoesNotExist:
+        logger.warning(f"Group '{group_name}' does not exist. Run setup_groups management command.")
+
+
 class AuthService:
     """Service for authentication operations."""
     
@@ -94,6 +115,14 @@ class AuthService:
             first_name=validated_data['first_name'],
             last_name=validated_data['last_name']
         )
+        
+        # Assign user to normal_user group
+        try:
+            normal_user_group = Group.objects.get(name=NORMAL_USER_GROUP)
+            user.auth_user.groups.add(normal_user_group)
+        except Group.DoesNotExist:
+            # If group doesn't exist yet, it will be created by setup_groups command
+            logger.warning(f"Group '{NORMAL_USER_GROUP}' does not exist. Run setup_groups management command.")
 
         # Send welcome email (best-effort)
         try:
@@ -137,6 +166,10 @@ class AuthService:
                 mobile_number=f'uid{django_user.pk}',  # placeholder until user updates profile
                 hms_id=1,
             )
+        
+        # Assign role-based group if not already assigned
+        _assign_user_group(django_user, user)
+        
         return user, django_user
     
     @staticmethod
@@ -197,6 +230,9 @@ class AuthService:
             raise ApiException('User not found')
         
         django_user = user.auth_user
+        
+        # Assign role-based group if not already assigned
+        _assign_user_group(django_user, user)
         
         return user, django_user
     
