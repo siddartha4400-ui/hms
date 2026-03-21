@@ -5,6 +5,9 @@ from graphql_jwt.refresh_token.shortcuts import create_refresh_token, get_refres
 from apps.users.models import User
 from apps.users.services import AuthService, PasswordResetService, UserProfileService
 from apps.users.validators import UserValidator
+from apps.users.repositories import UserRepository
+from apps.users.graphql.types import UserRoleInfoType, RouteType, ROUTES_BY_ROLE
+from apps.users.permissions import get_group_from_role
 from common.exceptions import ApiException
 
 
@@ -59,6 +62,60 @@ class LoginMutation(graphene.Mutation):
     message = graphene.String()
     token = graphene.String()
     refresh_token = graphene.String()
+    user_role = graphene.String()
+    available_routes = graphene.List(RouteType)
+    
+    @staticmethod
+    def _get_available_routes(django_user, user_profile):
+        """Helper to get available routes for user."""
+        from apps.users.graphql.types import ROUTES_BY_ROLE
+        
+        # Determine user's role/group
+        role_name = "normal_user"
+        if user_profile and user_profile.role is not None:
+            role_name = get_group_from_role(user_profile.role)
+        elif django_user.groups.exists():
+            role_name = django_user.groups.first().name
+        
+        # Get routes for this role
+        routes = ROUTES_BY_ROLE.get(role_name, [])
+        
+        # Filter routes based on user's actual permissions
+        available_routes = []
+        for route in routes:
+            perm = route.get('requires_permission')
+            
+            # If no permission required, always visible
+            if not perm:
+                available_routes.append(
+                    RouteType(
+                        path=route['path'],
+                        name=route['name'],
+                        description=route['description'],
+                        icon=route.get('icon'),
+                        requires_permission=perm,
+                        visible=True,
+                    )
+                )
+                continue
+            
+            # Check if user has the permission
+            app_label, codename = perm.split('.')
+            has_perm = django_user.has_perm(f'{app_label}.{codename}')
+            
+            if has_perm:
+                available_routes.append(
+                    RouteType(
+                        path=route['path'],
+                        name=route['name'],
+                        description=route['description'],
+                        icon=route.get('icon'),
+                        requires_permission=perm,
+                        visible=True,
+                    )
+                )
+        
+        return available_routes
     
     @staticmethod
     def mutate(root, info, method, email=None, password=None, mobile_number=None):
@@ -72,11 +129,22 @@ class LoginMutation(graphene.Mutation):
                 token = get_token(django_user)
                 refresh_token_obj = create_refresh_token(django_user)
                 
+                # Get role and available routes
+                role_name = "normal_user"
+                if user and user.role is not None:
+                    role_name = get_group_from_role(user.role)
+                elif django_user.groups.exists():
+                    role_name = django_user.groups.first().name
+                
+                available_routes = LoginMutation._get_available_routes(django_user, user)
+                
                 return LoginMutation(
                     success=True,
                     message='Login successful',
                     token=token,
-                    refresh_token=str(refresh_token_obj)
+                    refresh_token=str(refresh_token_obj),
+                    user_role=role_name,
+                    available_routes=available_routes,
                 )
             
             elif method == 'email_otp':
@@ -122,6 +190,8 @@ class VerifyLoginOTPMutation(graphene.Mutation):
     message = graphene.String()
     token = graphene.String()
     refresh_token = graphene.String()
+    user_role = graphene.String()
+    available_routes = graphene.List(RouteType)
     
     @staticmethod
     def mutate(root, info, identifier, otp, otp_type):
@@ -130,11 +200,22 @@ class VerifyLoginOTPMutation(graphene.Mutation):
             token = get_token(django_user)
             refresh_token_obj = create_refresh_token(django_user)
             
+            # Get role and available routes
+            role_name = "normal_user"
+            if user and user.role is not None:
+                role_name = get_group_from_role(user.role)
+            elif django_user.groups.exists():
+                role_name = django_user.groups.first().name
+            
+            available_routes = LoginMutation._get_available_routes(django_user, user)
+            
             return VerifyLoginOTPMutation(
                 success=True,
                 message='OTP verified successfully',
                 token=token,
-                refresh_token=str(refresh_token_obj)
+                refresh_token=str(refresh_token_obj),
+                user_role=role_name,
+                available_routes=available_routes,
             )
         except ApiException as e:
             return VerifyLoginOTPMutation(success=False, message=str(e))
