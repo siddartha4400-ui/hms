@@ -81,9 +81,14 @@ class Query(graphene.ObjectType):
 	)
 
 	def resolve_search_availability(self, info, **kwargs):
+		subsite_key = getattr(info.context, "subsite_key", None)
+		if subsite_key:
+			kwargs["hms_name"] = subsite_key
 		return [AvailabilityOptionType(**item) for item in AvailabilityService.search(kwargs)]
 
 	def resolve_list_bookings(self, info, view, mine=False, hms_id=None):
 		actor = info.context.user if info.context.user and info.context.user.is_authenticated else None
+		if hms_id is None:
+			hms_id = getattr(info.context, "company_id", None)
 		items = BookingService.list_bookings(view=view, mine=mine, hms_id=hms_id, actor=actor)
 		return [BookingType(**item) for item in items]

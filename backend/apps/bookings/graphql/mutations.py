@@ -64,8 +64,9 @@ class CreateBookingMutation(graphene.Mutation):
 	@staticmethod
 	def mutate(root, info, **kwargs):
 		actor = info.context.user if info.context.user and info.context.user.is_authenticated else None
+		company_id = getattr(info.context, "company_id", None)
 		try:
-			booking = BookingService.create_booking(kwargs, actor=actor)
+			booking = BookingService.create_booking(kwargs, actor=actor, company_id=company_id)
 			return CreateBookingMutation(success=True, message="Booking confirmed", booking=BookingType(**booking))
 		except ApiException as exc:
 			return CreateBookingMutation(success=False, message=str(exc), booking=None)

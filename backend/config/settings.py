@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+import re
 from datetime import timedelta
 from dotenv import load_dotenv
 
@@ -30,7 +31,14 @@ SECRET_KEY = 'django-insecure-)t7f=rcx$pj1svxws$rhfiwniqdhsx!8$i!xq^5nmlz4a!#!8#
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+SUBSITE_BASE_DOMAIN = os.getenv('SUBSITE_BASE_DOMAIN', 'hms.local').strip().lower()
+BACKEND_BASE_HOST = os.getenv('BACKEND_BASE_HOST', f'backend.{SUBSITE_BASE_DOMAIN}').strip().lower()
+
+_allowed_hosts_raw = os.getenv(
+    'ALLOWED_HOSTS',
+    f'localhost,127.0.0.1,{BACKEND_BASE_HOST},.{SUBSITE_BASE_DOMAIN}'
+)
+ALLOWED_HOSTS = [host.strip() for host in _allowed_hosts_raw.split(',') if host.strip()]
 
 
 # Application definition
@@ -59,6 +67,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'project_graphql.middleware.SubsiteContextMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     "corsheaders.middleware.CorsMiddleware",
@@ -71,9 +80,17 @@ GRAPHQL_JWT = {
     "JWT_EXPIRATION_DELTA": timedelta(minutes=int(os.getenv("JWT_EXPIRATION_MINUTES", "480"))),
     "JWT_REFRESH_EXPIRATION_DELTA": timedelta(days=int(os.getenv("JWT_REFRESH_EXPIRATION_DAYS", "30"))),
 }
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in os.getenv(
+    'CORS_ALLOWED_ORIGINS',
+    'http://localhost:3000,http://127.0.0.1:3000'
+).split(',') if origin.strip()]
+
+_subsite_domain_regex = re.escape(SUBSITE_BASE_DOMAIN)
+_default_origin_regexes = [
+    rf"^https?://([a-z0-9-]+\.)*{_subsite_domain_regex}(?::\d+)?$",
 ]
+_custom_origin_regexes = [item.strip() for item in os.getenv('CORS_ALLOWED_ORIGIN_REGEXES', '').split(',') if item.strip()]
+CORS_ALLOWED_ORIGIN_REGEXES = _default_origin_regexes + _custom_origin_regexes
 CORS_ALLOW_CREDENTIALS = True
 
 ASGI_APPLICATION = "config.asgi.application"
@@ -181,4 +198,3 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = os.getenv('EMAIL_HOST_USER')
 
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
-SUBSITE_BASE_DOMAIN = os.getenv('SUBSITE_BASE_DOMAIN', 'ourdomain.com')

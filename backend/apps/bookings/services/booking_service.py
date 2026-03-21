@@ -89,9 +89,16 @@ class BookingService:
 
 	@staticmethod
 	@transaction.atomic
-	def create_booking(payload: dict, actor=None):
+	def create_booking(payload: dict, actor=None, company_id=None):
 		if not actor or not actor.is_authenticated:
 			raise ApiException("Login is required to complete the booking", status_code=401)
+
+		normalized_company_id = None
+		if company_id not in (None, ""):
+			try:
+				normalized_company_id = int(company_id)
+			except (TypeError, ValueError):
+				raise ApiException("Invalid subsite context", status_code=400)
 
 		check_in = BookingValidator.parse_date(payload.get("check_in"), "check_in")
 		check_out = BookingValidator.parse_date(payload.get("check_out"), "check_out")
@@ -121,6 +128,8 @@ class BookingService:
 			room = BookingRepository.get_room_for_update(room_id)
 			if not room or room.building.property_type != "lodge" or not room.is_active or room.status != "available":
 				raise ApiException("Selected room is not available")
+			if normalized_company_id is not None and room.building.company_id != normalized_company_id:
+				raise ApiException("Selected room is not available for this subsite", status_code=403)
 			if BookingRepository.has_overlapping_room_booking(room.id, check_in, check_out):
 				raise ApiException("Selected room is already booked for the chosen dates")
 			booking_data.update(
@@ -142,6 +151,8 @@ class BookingService:
 			bed = BookingRepository.get_bed_for_update(bed_id)
 			if not bed or bed.room.building.property_type != "pg" or not bed.is_active or bed.status != "available":
 				raise ApiException("Selected bed is not available")
+			if normalized_company_id is not None and bed.room.building.company_id != normalized_company_id:
+				raise ApiException("Selected bed is not available for this subsite", status_code=403)
 			if BookingRepository.has_overlapping_bed_booking(bed.id, check_in, check_out):
 				raise ApiException("Selected bed is already booked for the chosen dates")
 			booking_data.update(

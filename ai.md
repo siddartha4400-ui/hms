@@ -163,3 +163,31 @@ Always follow these rules when generating code.
 - Put persistence logic in validators.
 - Put request parsing in repositories.
 - Create another root backend package named `graphql`.
+
+
+subsite architecture
+
+
+[ Subsite A ]   [ Subsite B ]   [ Subsite C ]
+     |               |               |
+     | (subsiteKey)  | (subsiteKey) |
+     └──────┬────────┴───────┬──────┘
+            |
+        🌐 API Gateway / Backend
+            |
+     ------------------------
+     |   Middleware Layer   |
+     ------------------------
+            |
+     1. Extract subsiteKey
+     2. Validate subsite
+     3. Fetch organization (OTG)
+     4. Attach:
+        - companyId
+        - userId (if applicable)
+            |
+     ------------------------
+     |   Application Logic  |
+     ------------------------
+            |
+        🗄️ Database
