@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "users",
     "apps.attachments",
     "apps.subsites",
+    "apps.propertys",
 ]
 
 MIDDLEWARE = [

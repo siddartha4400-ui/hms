@@ -4,6 +4,7 @@ import React from 'react';
 import { useLazyQuery, useMutation, useQuery } from '@apollo/client/react';
 import { InputBox, PopupToast } from '@/components';
 import { FiCheckCircle, FiEdit2, FiGlobe, FiPower, FiRefreshCw, FiSave, FiSearch, FiTrash2 } from 'react-icons/fi';
+import Link from 'next/link';
 import {
   CHECK_HMS_NAME_QUERY,
   CREATE_HMS_MUTATION,
@@ -270,6 +271,15 @@ export default function SubsitesOrganism() {
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
             Create and manage individual HMS subsites. Each hms_name maps to https://name.yourdomain.com.
           </p>
+          <div className="mt-3">
+            <Link
+              href="/subsite-dashboard"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg no-underline text-xs font-medium"
+              style={{ background: 'var(--brand-dim)', color: 'var(--brand-light)', border: '1px solid var(--brand-border)' }}
+            >
+              Open Subsite Property Dashboard
+            </Link>
+          </div>
           <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
             <FiGlobe className="w-4 h-4" style={{ color: 'var(--brand)' }} />
             <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>

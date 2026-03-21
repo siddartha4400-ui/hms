@@ -24,6 +24,12 @@ frontend/
 │   ├── Input.tsx
 │   ├── AttachmentUploader.tsx
 │   └── ...
+|
+├── icons/
+│   ├── EditIcon.tsx
+│   ├── DeleteIcon.tsx
+│   └── ...
+|
 └── project_components/
     └── <route>/
         ├── organisam/
@@ -148,6 +154,7 @@ Always follow these rules when generating code.
 - Put rendering in molecule.
 - Reuse canonical components.
 - Use validators -> services -> repositories -> models in backend modules.
+- If created/altered/turncated table run command inside docker container `python manage.py makemigrations` and `python manage.py migrate` to create migration files and update the database schema.
 
 ### Do Not
 
