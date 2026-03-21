@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "apps.attachments",
     "apps.subsites",
     "apps.propertys",
+    "apps.bookings",
 ]
 
 MIDDLEWARE = [

@@ -32,6 +32,8 @@ export default function Header() {
       { label: 'Overview', href: '/dashboard' },
       { label: 'Subsites', href: '/subsites' },
       { label: 'Cities', href: '/cities' },
+      { label: 'Bookings', href: '/bookings' },
+      { label: 'My Bookings', href: '/my-bookings' },
     ],
     [],
   );
@@ -53,6 +55,12 @@ export default function Header() {
       }
       if (href === '/cities') {
         return pathname.startsWith('/cities');
+      }
+      if (href === '/bookings') {
+        return pathname.startsWith('/bookings');
+      }
+      if (href === '/my-bookings') {
+        return pathname.startsWith('/my-bookings');
       }
       return pathname.startsWith(href);
     },

@@ -10,9 +10,11 @@ from apps.subsites.graphql.mutations import Mutation as SubsitesMutation
 from apps.subsites.graphql.queries import Query as SubsitesQuery
 from apps.propertys.graphql.mutations import Mutation as PropertysMutation
 from apps.propertys.graphql.queries import Query as PropertysQuery
+from apps.bookings.graphql.mutations import Mutation as BookingsMutation
+from apps.bookings.graphql.queries import Query as BookingsQuery
 
 
-class Query(UserQuery, UsersQuery, SubsitesQuery, PropertysQuery, graphene.ObjectType):
+class Query(UserQuery, UsersQuery, SubsitesQuery, PropertysQuery, BookingsQuery, graphene.ObjectType):
     pass
 
 
@@ -60,6 +62,10 @@ class Mutation(graphene.ObjectType):
     create_bed = PropertysMutation.create_bed
     update_bed = PropertysMutation.update_bed
     delete_bed = PropertysMutation.delete_bed
+
+    # Booking mutations
+    create_booking = BookingsMutation.create_booking
+    cancel_booking = BookingsMutation.cancel_booking
 
 
 schema = graphene.Schema(query=Query, mutation=Mutation)
