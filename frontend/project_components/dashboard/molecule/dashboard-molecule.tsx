@@ -141,6 +141,8 @@ interface DashboardMoleculeProps {
   onTabChange: (tab: 'alerts' | 'hotels') => void;
   alerts: AlertRow[];
   hotels: HotelRow[];
+  avatarUrl: string;
+  avatarInitials: string;
   logoutLoading: boolean;
   onLogout: () => void;
 }
@@ -150,6 +152,8 @@ export default function DashboardMolecule({
   onTabChange,
   alerts,
   hotels,
+  avatarUrl,
+  avatarInitials,
   logoutLoading,
   onLogout,
 }: DashboardMoleculeProps) {
@@ -211,16 +215,22 @@ export default function DashboardMolecule({
           >
             {logoutLoading ? 'Signing Out...' : 'Sign Out'}
           </button>
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold cursor-pointer transition-all"
+          <Link
+            href="/profile"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold cursor-pointer transition-all overflow-hidden no-underline"
             style={{
               background: 'var(--brand-dim)',
               border: '1px solid var(--brand-border)',
               color: 'var(--brand)',
             }}
+            aria-label="Open profile"
           >
-            AD
-          </div>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              avatarInitials
+            )}
+          </Link>
         </div>
       </header>
 

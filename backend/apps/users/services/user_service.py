@@ -12,6 +12,30 @@ import os
 logger = logging.getLogger(__name__)
 
 
+def _get_profile_picture_url(profile_id):
+    if not profile_id:
+        return ""
+
+    try:
+        from apps.attachments.models import Attachment
+
+        attachment = Attachment.objects.filter(id=profile_id).first()
+        return attachment.file_url if attachment else ""
+    except Exception:
+        return ""
+
+
+def _to_iso_string(value):
+    if not value:
+        return ""
+
+    iso_fn = getattr(value, 'isoformat', None)
+    if callable(iso_fn):
+        return iso_fn()
+
+    return str(value)
+
+
 def _send_email_otp(to_email: str, otp_code: str, purpose: str = 'login') -> None:
     """Send OTP via email using Django's email backend."""
     subject_map = {
@@ -303,6 +327,10 @@ class UserProfileService:
     @staticmethod
     def serialize_user(user):
         """Serialize user object to dict."""
+        dob_value = _to_iso_string(getattr(user, 'dob', None))
+        created_at_value = _to_iso_string(getattr(user, 'created_at', None))
+        updated_at_value = _to_iso_string(getattr(user, 'updated_at', None))
+
         return {
             'id': user.hms_id,
             'email': user.email,
@@ -319,9 +347,10 @@ class UserProfileService:
             'country': user.country,
             'company_id': user.company_id,
             'profile_id': user.profile_id,
-            'dob': user.dob,
+            'profile_picture_url': _get_profile_picture_url(user.profile_id),
+            'dob': dob_value,
             'is_verified': user.is_verified,
             'is_active': user.is_active,
-            'created_at': user.created_at,
-            'updated_at': user.updated_at,
+            'created_at': created_at_value,
+            'updated_at': updated_at_value,
         }

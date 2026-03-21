@@ -203,6 +203,7 @@ class UpdateProfileMutation(graphene.Mutation):
         postal_code = graphene.String()
         country = graphene.String()
         dob = graphene.String()
+        profile_id = graphene.Int()
     
     success = graphene.Boolean()
     message = graphene.String()

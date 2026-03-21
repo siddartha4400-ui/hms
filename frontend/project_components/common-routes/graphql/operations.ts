@@ -23,6 +23,7 @@ export const GET_USER_PROFILE_QUERY = gql`
     getUserProfile {
       id
       email
+      username
       firstName
       lastName
       mobileNumber
@@ -32,7 +33,14 @@ export const GET_USER_PROFILE_QUERY = gql`
       state
       postalCode
       country
+      companyId
+      profileId
+      profilePictureUrl
       dob
+      isVerified
+      isActive
+      createdAt
+      updatedAt
     }
   }
 `;
@@ -41,7 +49,7 @@ export const UPDATE_PROFILE_MUTATION = gql`
   mutation UpdateProfile(
     $firstName: String
     $lastName: String
-    $mobileNumber: String
+    $profileId: Int
     $addressLine1: String
     $addressLine2: String
     $city: String
@@ -53,7 +61,7 @@ export const UPDATE_PROFILE_MUTATION = gql`
     updateProfile(
       firstName: $firstName
       lastName: $lastName
-      mobileNumber: $mobileNumber
+      profileId: $profileId
       addressLine1: $addressLine1
       addressLine2: $addressLine2
       city: $city
@@ -64,12 +72,6 @@ export const UPDATE_PROFILE_MUTATION = gql`
     ) {
       success
       message
-      user {
-        id
-        email
-        firstName
-        lastName
-      }
     }
   }
 `;

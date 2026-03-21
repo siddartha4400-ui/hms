@@ -23,6 +23,7 @@ class UserType(graphene.ObjectType):
     country = graphene.String()
     company_id = graphene.String()
     profile_id = graphene.Int()
+    profile_picture_url = graphene.String()
     dob = graphene.String()
     is_verified = graphene.Boolean()
     is_active = graphene.Boolean()

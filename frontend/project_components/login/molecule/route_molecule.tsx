@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { FiLock, FiLogIn, FiMail, FiPhone, FiKey, FiLoader } from 'react-icons/fi';
+import { PopupToast } from '@/components';
 
 type LoginMethod = 'password' | 'email_otp' | 'whatsapp_otp';
 type Step = 'select' | 'input' | 'verify';
@@ -78,6 +79,10 @@ export default function RouteMolecule({ onLogin, onError, error = '', loading = 
   if (step === 'select') {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+        <PopupToast
+          message={error || statusMessage}
+          variant={error ? 'error' : 'success'}
+        />
         <div className="w-full max-w-md">
           {/* Header */}
           <div className="text-center mb-8">
@@ -157,6 +162,10 @@ export default function RouteMolecule({ onLogin, onError, error = '', loading = 
   if (step === 'verify') {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+        <PopupToast
+          message={error || statusMessage}
+          variant={error ? 'error' : 'success'}
+        />
         <div className="w-full max-w-md">
           {/* Header */}
           <div className="text-center mb-8">
@@ -171,16 +180,6 @@ export default function RouteMolecule({ onLogin, onError, error = '', loading = 
 
           {/* OTP Verification Form */}
           <form onSubmit={handleVerifyOtp} className="space-y-6">
-            {error && (
-              <div className="px-4 py-3 rounded-lg border border-rose-400/40 bg-rose-500/10 text-rose-200 text-sm animate-pulse">
-                {error}
-              </div>
-            )}
-            {statusMessage && (
-              <div className="px-4 py-3 rounded-lg border border-emerald-400/40 bg-emerald-500/10 text-emerald-200 text-sm">
-                {statusMessage}
-              </div>
-            )}
             <input
               type="text"
               maxLength={6}
@@ -227,6 +226,10 @@ export default function RouteMolecule({ onLogin, onError, error = '', loading = 
   // step === 'input'
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+      <PopupToast
+        message={error || statusMessage}
+        variant={error ? 'error' : 'success'}
+      />
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
@@ -253,16 +256,6 @@ export default function RouteMolecule({ onLogin, onError, error = '', loading = 
           onSubmit={method === 'password' ? handlePasswordLogin : handleRequestOtp}
           className="space-y-6"
         >
-          {error && (
-            <div className="px-4 py-3 rounded-lg border border-rose-400/40 bg-rose-500/10 text-rose-200 text-sm animate-pulse">
-              {error}
-            </div>
-          )}
-          {statusMessage && (
-            <div className="px-4 py-3 rounded-lg border border-emerald-400/40 bg-emerald-500/10 text-emerald-200 text-sm">
-              {statusMessage}
-            </div>
-          )}
           {(method === 'password' || method === 'email_otp') && (
             <input
               type="email"

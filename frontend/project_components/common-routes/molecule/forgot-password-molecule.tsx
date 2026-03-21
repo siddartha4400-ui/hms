@@ -1,6 +1,6 @@
-import { FiMail, FiArrowLeft, FiCheckCircle, FiAlertCircle, FiSend } from 'react-icons/fi';
+import { FiMail, FiArrowLeft, FiCheckCircle, FiSend } from 'react-icons/fi';
 import Link from 'next/link';
-import { InputBox } from '@/components';
+import { InputBox, PopupToast } from '@/components';
 
 interface ForgotPasswordMoleculeProps {
   email: string;
@@ -23,6 +23,10 @@ export default function ForgotPasswordMolecule({
 }: ForgotPasswordMoleculeProps) {
   return (
     <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-[#0a0f1e] p-4 sm:p-6 lg:p-8">
+      <PopupToast
+        message={error || statusMessage}
+        variant={error ? 'error' : 'success'}
+      />
       {/* Ambient background blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl" />
@@ -61,22 +65,6 @@ export default function ForgotPasswordMolecule({
                   No worries. Enter your email and we'll send you a reset link.
                 </p>
               </div>
-
-              {/* Error alert */}
-              {error && (
-                <div className="flex items-start gap-3 mb-5 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
-                  <FiAlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
-                  <p className="text-red-300 text-sm leading-relaxed">{error}</p>
-                </div>
-              )}
-
-              {/* Info alert */}
-              {statusMessage && (
-                <div className="flex items-start gap-3 mb-5 p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
-                  <FiCheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
-                  <p className="text-green-300 text-sm leading-relaxed">{statusMessage}</p>
-                </div>
-              )}
 
               {/* Form */}
               <form onSubmit={onSubmit} className="space-y-4">

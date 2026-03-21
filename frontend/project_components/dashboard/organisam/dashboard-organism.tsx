@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation } from '@apollo/client/react';
+import { useMutation, useQuery } from '@apollo/client/react';
+import {
+  PROFILE_AVATAR_UPDATED_EVENT,
+  getInitials,
+  readStoredProfileIdentity,
+  syncProfileIdentity,
+} from '@/lib/profile-avatar';
+import { GET_USER_PROFILE_QUERY } from '@/project_components/common-routes/graphql/operations';
 import { LOGOUT_MUTATION } from '@/project_components/login/graphql/operations';
 import DashboardMolecule from '../molecule/dashboard-molecule';
 
@@ -26,6 +33,15 @@ type HotelRow = {
   bookingsToday: number;
   revenue: string;
   status: 'active' | 'maintenance' | 'review';
+};
+
+type DashboardProfileData = {
+  getUserProfile?: {
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+    profilePictureUrl?: string;
+  };
 };
 
 // Mock Data
@@ -134,6 +150,10 @@ export default function DashboardOrganism() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'alerts' | 'hotels'>('alerts');
+  const [profileIdentity, setProfileIdentity] = useState(readStoredProfileIdentity());
+  const { data: profileData } = useQuery<DashboardProfileData>(GET_USER_PROFILE_QUERY, {
+    skip: isLoading,
+  });
   const [logoutMutation, { loading: logoutLoading }] = useMutation(LOGOUT_MUTATION);
 
   useEffect(() => {
@@ -144,6 +164,32 @@ export default function DashboardOrganism() {
       setIsLoading(false);
     }
   }, [router]);
+
+  useEffect(() => {
+    const profile = profileData?.getUserProfile;
+    if (!profile) {
+      return;
+    }
+
+    syncProfileIdentity({
+      avatarUrl: profile.profilePictureUrl,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      email: profile.email,
+    });
+    setProfileIdentity(readStoredProfileIdentity());
+  }, [profileData]);
+
+  useEffect(() => {
+    const handleProfileUpdate = () => {
+      setProfileIdentity(readStoredProfileIdentity());
+    };
+
+    window.addEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileUpdate as EventListener);
+    return () => {
+      window.removeEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileUpdate as EventListener);
+    };
+  }, []);
 
   const handleLogout = async () => {
     const refreshToken = localStorage.getItem('refreshToken');
@@ -183,6 +229,8 @@ export default function DashboardOrganism() {
       onTabChange={setActiveTab}
       alerts={RECENT_ALERTS}
       hotels={TOP_HOTELS}
+      avatarUrl={profileIdentity.avatarUrl}
+      avatarInitials={getInitials(profileIdentity.firstName, profileIdentity.lastName, profileIdentity.email)}
       logoutLoading={logoutLoading}
       onLogout={handleLogout}
     />

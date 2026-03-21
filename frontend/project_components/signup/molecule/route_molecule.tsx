@@ -1,6 +1,6 @@
 import { FiUser, FiMail, FiPhone, FiKey, FiLock } from 'react-icons/fi';
 import Link from 'next/link';
-import { Button, InputBox } from '@/components';
+import { Button, InputBox, PopupToast } from '@/components';
 
 interface SignupMoleculeProps {
   formData: {
@@ -28,6 +28,10 @@ export default function SignupMolecule({
 }: SignupMoleculeProps) {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+      <PopupToast
+        message={error || statusMessage}
+        variant={error ? 'error' : 'success'}
+      />
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
@@ -37,20 +41,6 @@ export default function SignupMolecule({
           <h1 className="text-3xl font-bold text-white mb-2">Create Account</h1>
           <p className="text-slate-400">Join HotelSphere today</p>
         </div>
-
-        {/* Error Banner */}
-        {error && (
-          <div className="mb-4 p-4 bg-red-500/20 border border-red-500 rounded-lg">
-            <p className="text-red-300 text-sm">{error}</p>
-          </div>
-        )}
-
-        {/* Success Banner */}
-        {statusMessage && (
-          <div className="mb-4 p-4 bg-green-500/20 border border-green-500 rounded-lg">
-            <p className="text-green-300 text-sm">{statusMessage}</p>
-          </div>
-        )}
 
         {/* Form */}
         <form onSubmit={onSubmit} className="space-y-4">

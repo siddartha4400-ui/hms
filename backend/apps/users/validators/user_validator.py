@@ -183,6 +183,7 @@ class UserValidator:
             'postal_code',
             'country',
             'dob',
+            'profile_id',
         ]
         
         # Reject email and mobile_number updates

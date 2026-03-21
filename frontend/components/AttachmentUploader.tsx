@@ -28,6 +28,7 @@ type Props = {
   accept?: string;
   label?: string;
   disabled?: boolean;
+  showUploadedList?: boolean;
   className?: string;
   onUploadComplete?: (attachments: UploadedAttachment[]) => void;
   onUploadError?: (message: string) => void;
@@ -79,6 +80,7 @@ export default function AttachmentUploader({
   accept,
   label = "Upload attachments",
   disabled = false,
+  showUploadedList = true,
   className = "",
   onUploadComplete,
   onUploadError,
@@ -216,44 +218,46 @@ export default function AttachmentUploader({
           </div>
         ) : null}
 
-        <div className="grid gap-3">
-          {state.attachments.map((attachment) => (
-            <article
-              key={attachment.id}
-              className="rounded-xl border p-3"
-              style={{
-                background: "var(--bg-elevated)",
-                borderColor: "var(--border)",
-              }}
-            >
-              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                    {attachment.original_file_name}
-                  </p>
-                  <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-                    folder: {attachment.folder_name}
-                  </p>
-                  <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                    file: {attachment.file_name}
-                  </p>
+        {showUploadedList ? (
+          <div className="grid gap-3">
+            {state.attachments.map((attachment) => (
+              <article
+                key={attachment.id}
+                className="rounded-xl border p-3"
+                style={{
+                  background: "var(--bg-elevated)",
+                  borderColor: "var(--border)",
+                }}
+              >
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                      {attachment.original_file_name}
+                    </p>
+                    <p className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+                      folder: {attachment.folder_name}
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                      file: {attachment.file_name}
+                    </p>
+                  </div>
+                  <div className="text-xs md:text-right" style={{ color: "var(--text-secondary)" }}>
+                    <p>{formatBytes(attachment.file_size)}</p>
+                    <a
+                      href={attachment.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 inline-block underline underline-offset-2"
+                      style={{ color: "var(--brand-light)" }}
+                    >
+                      Open file
+                    </a>
+                  </div>
                 </div>
-                <div className="text-xs md:text-right" style={{ color: "var(--text-secondary)" }}>
-                  <p>{formatBytes(attachment.file_size)}</p>
-                  <a
-                    href={attachment.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-1 inline-block underline underline-offset-2"
-                    style={{ color: "var(--brand-light)" }}
-                  >
-                    Open file
-                  </a>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
+              </article>
+            ))}
+          </div>
+        ) : null}
       </div>
     </section>
   );

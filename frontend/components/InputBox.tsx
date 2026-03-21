@@ -10,17 +10,26 @@ export default function InputBox({
   className = '',
   ...props
 }: InputIconProps) {
+  const hasIcon = Boolean(Icon);
+
   return (
-    <div className="relative">
-      <input
-        className={`w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-green-500 focus:outline-none disabled:opacity-50 ${Icon ? 'pl-10' : 'pl-4'} ${className}`.trim()}
-        {...props}
-      />
-      {Icon && (
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-          <Icon className="w-4 h-4" />
+    <div className="relative h-12">
+      {hasIcon && Icon && (
+        <div className="absolute inset-y-0 left-0 w-12 flex items-center justify-center pointer-events-none" style={{ color: 'var(--text-secondary)' }}>
+          <Icon className="w-[18px] h-[18px]" />
         </div>
       )}
+      <input
+        className={`w-full h-12 leading-6 rounded-lg border focus:outline-none disabled:opacity-50 ${className}`.trim()}
+        style={{
+          background: 'var(--bg-input)',
+          borderColor: 'var(--border)',
+          color: 'var(--text-primary)',
+          paddingLeft: hasIcon ? '3.25rem' : '1rem',
+          paddingRight: '1rem',
+        }}
+        {...props}
+      />
     </div>
   );
 }

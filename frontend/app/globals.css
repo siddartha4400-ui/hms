@@ -170,6 +170,55 @@ body {
   to   { opacity: 1; }
 }
 
+@keyframes calendarPopoverIn {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+    filter: blur(1.5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes iconFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1px); }
+}
+
+@keyframes controlsSlideIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes gridReveal {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes calendarNextIn {
+  0% { opacity: 0; transform: translateX(14px) scale(0.985); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes calendarPrevIn {
+  0% { opacity: 0; transform: translateX(-14px) scale(0.985); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes calendarJumpIn {
+  0% { opacity: 0; transform: translateY(10px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes daySelectedPop {
+  0% { transform: scale(0.92); }
+  75% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: 0.6; transform: scale(0.85); }
@@ -185,6 +234,80 @@ body {
 
 .animate-pulse-dot {
   animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.calendar-input-wrap {
+  transition: border-color 180ms ease, box-shadow 220ms ease;
+}
+
+.calendar-input-wrap:focus-within {
+  box-shadow: 0 0 0 3px var(--brand-dim);
+}
+
+.calendar-left-icon {
+  animation: iconFloat 2.6s ease-in-out infinite;
+}
+
+.calendar-toggle-btn {
+  transition: transform 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+
+.calendar-toggle-btn:hover {
+  background: var(--brand-dim);
+  color: var(--brand-light);
+  transform: translateY(-50%) scale(1.05);
+}
+
+.calendar-popover {
+  transform-origin: top center;
+  animation: calendarPopoverIn 260ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+.calendar-controls-row {
+  animation: controlsSlideIn 220ms ease both;
+}
+
+.calendar-select {
+  transition: border-color 160ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.calendar-select:focus {
+  box-shadow: 0 0 0 2px var(--brand-dim);
+  border-color: var(--brand-border) !important;
+}
+
+.calendar-grid {
+  animation: gridReveal 240ms 40ms ease both;
+}
+
+.calendar-grid-next {
+  animation: calendarNextIn 240ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+.calendar-grid-prev {
+  animation: calendarPrevIn 240ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+.calendar-grid-jump {
+  animation: calendarJumpIn 240ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+.calendar-day-btn {
+  transition: transform 140ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.calendar-day-btn:hover {
+  transform: translateY(-1px);
+  background: var(--brand-dim) !important;
+  border-color: var(--brand-border) !important;
+}
+
+.calendar-day-btn:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.calendar-day-selected {
+  animation: daySelectedPop 220ms cubic-bezier(.2,.8,.2,1);
 }
 
 /* ── Surface Cards ────────────────────────────────────────────────────────── */
