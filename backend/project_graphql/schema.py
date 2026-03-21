@@ -6,9 +6,11 @@ from config.mutations.whatsapp import SendWhatsappTemplate
 from config.queries.user_queries import UserQuery
 from apps.users.graphql.mutations import Mutation as UsersMutation
 from apps.users.graphql.queries import Query as UsersQuery
+from apps.subsites.graphql.mutations import Mutation as SubsitesMutation
+from apps.subsites.graphql.queries import Query as SubsitesQuery
 
 
-class Query(UserQuery, UsersQuery, graphene.ObjectType):
+class Query(UserQuery, UsersQuery, SubsitesQuery, graphene.ObjectType):
     pass
 
 
@@ -30,6 +32,11 @@ class Mutation(graphene.ObjectType):
     reset_password = UsersMutation.reset_password
     update_profile = UsersMutation.update_profile
     logout = UsersMutation.logout
+
+    # Subsites (HMS) mutations
+    create_hms = SubsitesMutation.create_hms
+    update_hms = SubsitesMutation.update_hms
+    delete_hms = SubsitesMutation.delete_hms
 
 
 schema = graphene.Schema(query=Query, mutation=Mutation)

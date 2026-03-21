@@ -27,7 +27,13 @@ interface HeaderProfileData {
 export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
-  const [profileIdentity, setProfileIdentity] = React.useState(readStoredProfileIdentity());
+  const [profileIdentity, setProfileIdentity] = React.useState({
+    avatarUrl: '',
+    initials: 'U',
+    firstName: undefined as string | undefined,
+    lastName: undefined as string | undefined,
+    email: undefined as string | undefined,
+  });
   const { data } = useQuery<HeaderProfileData>(GET_USER_PROFILE_QUERY, {
     skip: pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/dashboard'),
   });
@@ -48,6 +54,10 @@ export default function Header() {
     localStorage.removeItem('refreshToken');
     router.replace('/login');
   }, [logoutMutation, router]);
+
+  React.useEffect(() => {
+    setProfileIdentity(readStoredProfileIdentity());
+  }, []);
 
   React.useEffect(() => {
     const profile = data?.getUserProfile;
@@ -110,26 +120,20 @@ export default function Header() {
       <div className="hidden md:flex items-center gap-7">
         {[
           { label: 'Overview',   href: '/dashboard' },
-          { label: 'Properties', href: '#' },
-          { label: 'Bookings',   href: '#' },
-          { label: 'Customers',  href: '#' },
-          { label: 'Analytics',  href: '#' },
+          { label: 'Subsites',   href: '/subsites' },
         ].map((link) => (
-          <a
+          <Link
             key={link.label}
             href={link.href}
-            className="text-[11px] uppercase tracking-widest no-underline transition-colors"
+            className="text-[11px] uppercase tracking-widest no-underline transition-all duration-200 px-2 py-1 rounded-md"
             style={{
-              color: pathname === link.href ? 'var(--brand)' : 'var(--text-muted)',
-            }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-secondary)'; }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.color =
-                pathname === link.href ? 'var(--brand)' : 'var(--text-muted)';
+              color: pathname.startsWith(link.href) ? 'var(--brand)' : 'var(--text-muted)',
+              background: pathname.startsWith(link.href) ? 'var(--brand-dim)' : 'transparent',
+              border: pathname.startsWith(link.href) ? '1px solid var(--brand-border)' : '1px solid transparent',
             }}
           >
             {link.label}
-          </a>
+          </Link>
         ))}
       </div>
 

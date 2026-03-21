@@ -8,6 +8,7 @@ import {
   VERIFY_LOGIN_OTP_MUTATION,
 } from '../graphql/operations';
 import RouteMolecule from '../molecule/route_molecule';
+import { clearStoredSession } from '@/lib/auth-token';
 
 type LoginMethod = 'password' | 'email_otp' | 'whatsapp_otp';
 
@@ -92,7 +93,15 @@ export default function RouteOrganism() {
 
       return { success: false, message: 'Unknown login method' };
     } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : 'An unexpected error occurred';
+      const rawMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      const isExpiredJwtError = /signature has expired|jwt expired/i.test(rawMessage);
+      if (isExpiredJwtError) {
+        clearStoredSession();
+      }
+
+      const errorMsg = isExpiredJwtError
+        ? 'Session expired. Please log in again.'
+        : rawMessage;
       setError(errorMsg);
       return { success: false, message: errorMsg };
     }

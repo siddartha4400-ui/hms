@@ -27,16 +27,15 @@ export default function Footer() {
         </small>
         <div className="flex gap-6">
           {['Privacy Policy', 'Terms of Use', 'Support'].map((link) => (
-            <a
+            <span
               key={link}
-              href="#"
-              className="text-[10px] uppercase tracking-widest no-underline transition-colors"
+              className="text-[10px] uppercase tracking-widest transition-colors"
               style={{ color: '#3d5278' }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = '#06b6d4'; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = '#3d5278'; }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLSpanElement).style.color = '#06b6d4'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLSpanElement).style.color = '#3d5278'; }}
             >
               {link}
-            </a>
+            </span>
           ))}
         </div>
       </div>

@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+from datetime import timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -47,6 +48,7 @@ INSTALLED_APPS = [
     "graphql_jwt.refresh_token",
     "users",
     "apps.attachments",
+    "apps.subsites",
 ]
 
 MIDDLEWARE = [
@@ -64,6 +66,8 @@ MIDDLEWARE = [
 GRAPHQL_JWT = {
     "JWT_VERIFY_EXPIRATION": True,
     "JWT_LONG_RUNNING_REFRESH_TOKEN": True,
+    "JWT_EXPIRATION_DELTA": timedelta(minutes=int(os.getenv("JWT_EXPIRATION_MINUTES", "480"))),
+    "JWT_REFRESH_EXPIRATION_DELTA": timedelta(days=int(os.getenv("JWT_REFRESH_EXPIRATION_DAYS", "30"))),
 }
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
@@ -175,3 +179,4 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = os.getenv('EMAIL_HOST_USER')
 
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+SUBSITE_BASE_DOMAIN = os.getenv('SUBSITE_BASE_DOMAIN', 'ourdomain.com')

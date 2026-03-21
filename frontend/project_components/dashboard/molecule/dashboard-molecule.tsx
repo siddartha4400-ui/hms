@@ -14,6 +14,7 @@ import {
 } from 'react-icons/fi';
 import ThemeToggle from '@/components/ThemeToggle';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 type AlertRow = {
   id: number;
@@ -157,6 +158,8 @@ export default function DashboardMolecule({
   logoutLoading,
   onLogout,
 }: DashboardMoleculeProps) {
+  const pathname = usePathname();
+
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
       {/* Top Navbar */}
@@ -189,15 +192,22 @@ export default function DashboardMolecule({
         </Link>
 
         <nav className="hidden md:flex items-center gap-7">
-          {['Overview', 'Properties', 'Bookings', 'Customers', 'Analytics'].map((item, i) => (
-            <a
-              key={item}
-              href="#"
-              className="text-[11px] uppercase tracking-widest no-underline transition-colors"
-              style={{ color: i === 0 ? 'var(--brand)' : 'var(--text-muted)' }}
+          {[
+            { label: 'Overview', href: '/dashboard' },
+            { label: 'Subsites', href: '/subsites' },
+          ].map((item) => (
+            <Link
+              key={item.label}
+              href={item.href}
+              className="text-[11px] uppercase tracking-widest no-underline transition-all duration-200 px-2 py-1 rounded-md"
+              style={{
+                color: pathname.startsWith(item.href) ? 'var(--brand)' : 'var(--text-muted)',
+                background: pathname.startsWith(item.href) ? 'var(--brand-dim)' : 'transparent',
+                border: pathname.startsWith(item.href) ? '1px solid var(--brand-border)' : '1px solid transparent',
+              }}
             >
-              {item}
-            </a>
+              {item.label}
+            </Link>
           ))}
         </nav>
 

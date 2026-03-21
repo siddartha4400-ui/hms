@@ -23,6 +23,7 @@
 // frontend/lib/apollo.ts
 import { ApolloClient, InMemoryCache, HttpLink } from '@apollo/client';
 import { setContext } from '@apollo/client/link/context';
+import { getValidAuthToken } from './auth-token';
 
 const httpLink = new HttpLink({
     uri: process.env.NEXT_PUBLIC_API_URL, // e.g., http://localhost:8000/graphql/
@@ -31,7 +32,7 @@ const httpLink = new HttpLink({
   });
 
 const authLink = setContext((_, { headers }) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+  const token = getValidAuthToken();
   return {
     headers: {
       ...headers,

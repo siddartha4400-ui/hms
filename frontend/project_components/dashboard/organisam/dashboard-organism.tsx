@@ -9,6 +9,7 @@ import {
   readStoredProfileIdentity,
   syncProfileIdentity,
 } from '@/lib/profile-avatar';
+import { getValidAuthToken } from '@/lib/auth-token';
 import { GET_USER_PROFILE_QUERY } from '@/project_components/common-routes/graphql/operations';
 import { LOGOUT_MUTATION } from '@/project_components/login/graphql/operations';
 import DashboardMolecule from '../molecule/dashboard-molecule';
@@ -148,7 +149,7 @@ const TOP_HOTELS: HotelRow[] = [
 
 export default function DashboardOrganism() {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => !getValidAuthToken());
   const [activeTab, setActiveTab] = useState<'alerts' | 'hotels'>('alerts');
   const [profileIdentity, setProfileIdentity] = useState(readStoredProfileIdentity());
   const { data: profileData } = useQuery<DashboardProfileData>(GET_USER_PROFILE_QUERY, {
@@ -157,9 +158,9 @@ export default function DashboardOrganism() {
   const [logoutMutation, { loading: logoutLoading }] = useMutation(LOGOUT_MUTATION);
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
+    const token = getValidAuthToken();
     if (!token) {
-      router.push('/login');
+      router.replace('/login');
     } else {
       setIsLoading(false);
     }
