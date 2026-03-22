@@ -1,62 +1,45 @@
 "use client";
+'use client';
 
-import React, { useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { ApolloProvider } from "@apollo/client/react";
-import Header from "../components/Header";
-import Footer from "../components/Footer";
-import apolloClient from "../lib/apollo";
-import { getValidAuthToken } from "../lib/auth-token";
+import React, { useEffect, useMemo } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { ApolloProvider } from '@apollo/client/react';
+import Header from '../components/Header';
+import apolloClient from '../lib/apollo';
+import { getValidAuthToken } from '../lib/auth-token';
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
   const publicRoutes = useMemo(
-    () => new Set(["/", "/login", "/signup", "/forgot-password", "/reset-password"]),
+    () => new Set(['/', '/login', '/signup', '/forgot-password', '/reset-password']),
     [],
   );
 
   useEffect(() => {
     const token = getValidAuthToken();
-    const isPublicRoute =
-      publicRoutes.has(pathname) ||
-      pathname.startsWith("/reset-password");
+    const isPublicRoute = publicRoutes.has(pathname) || pathname.startsWith('/reset-password');
 
     if (!token && !isPublicRoute) {
-      router.replace("/login");
+      router.replace('/login');
       return;
     }
 
-    if (token && (pathname === "/login" || pathname === "/signup")) {
-      router.replace("/dashboard");
+    // Redirect away from login page if already authenticated.
+    if (token && pathname === '/login') {
+      router.replace('/');
     }
   }, [pathname, publicRoutes, router]);
-  
-  // Routes that manage their own nav/chrome (full-screen pass-through)
-  const isFullScreenRoute =
-    pathname === "/" ||
-    pathname === "/login" ||
-    pathname.startsWith("/dashboard");
-
-  if (isFullScreenRoute) {
-    return (
-      <ApolloProvider client={apolloClient}>
-        <div className="bg-slate-950 min-h-screen text-slate-50 selection:bg-amber-500/30">
-          {children}
-        </div>
-      </ApolloProvider>
-    );
-  }
 
   return (
     <ApolloProvider client={apolloClient}>
-      <div className="bg-slate-950 min-h-screen text-slate-50 selection:bg-amber-500/30">
+      {/* CSS-variable background adapts to dark / light theme automatically */}
+      <div className="min-h-screen selection:bg-amber-500/30" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
         <Header />
-        <main className="pt-20 pb-20">
+        <main className="pt-16">
           {children}
         </main>
-        <Footer />
       </div>
     </ApolloProvider>
   );

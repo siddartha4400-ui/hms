@@ -5,16 +5,12 @@ import {
   FiTrendingUp,
   FiArrowUpRight,
   FiArrowDownRight,
-  FiLayers,
   FiMapPin,
   FiBarChart2,
   FiShield,
   FiZap,
   FiStar,
 } from 'react-icons/fi';
-import ThemeToggle from '@/components/ThemeToggle';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 
 type AlertRow = {
   id: number;
@@ -142,10 +138,6 @@ interface DashboardMoleculeProps {
   onTabChange: (tab: 'alerts' | 'hotels') => void;
   alerts: AlertRow[];
   hotels: HotelRow[];
-  avatarUrl: string;
-  avatarInitials: string;
-  logoutLoading: boolean;
-  onLogout: () => void;
 }
 
 export default function DashboardMolecule({
@@ -153,97 +145,9 @@ export default function DashboardMolecule({
   onTabChange,
   alerts,
   hotels,
-  avatarUrl,
-  avatarInitials,
-  logoutLoading,
-  onLogout,
 }: DashboardMoleculeProps) {
-  const pathname = usePathname();
-
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-      {/* Top Navbar */}
-      <header
-        className="sticky top-0 z-40 px-6 py-3 flex justify-between items-center"
-        style={{
-          background: 'var(--bg-navbar)',
-          backdropFilter: 'blur(16px)',
-          borderBottom: '1px solid var(--border)',
-        }}
-      >
-        <Link href="/dashboard" className="flex items-center gap-2.5 no-underline group">
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200"
-            style={{
-              background: 'var(--brand-dim)',
-              border: '1px solid var(--brand-border)',
-            }}
-          >
-            <FiLayers style={{ color: 'var(--brand)' }} className="text-sm" />
-          </div>
-          <div className="leading-none">
-            <span className="block text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-              HotelSphere
-            </span>
-            <span className="block text-[9px] uppercase tracking-[.2em]" style={{ color: 'var(--text-muted)' }}>
-              Management Platform
-            </span>
-          </div>
-        </Link>
-
-        <nav className="hidden md:flex items-center gap-7">
-          {[
-            { label: 'Overview', href: '/dashboard' },
-            { label: 'Subsites', href: '/subsites' },
-          ].map((item) => (
-            <Link
-              key={item.label}
-              href={item.href}
-              className="text-[11px] uppercase tracking-widest no-underline transition-all duration-200 px-2 py-1 rounded-md"
-              style={{
-                color: pathname.startsWith(item.href) ? 'var(--brand)' : 'var(--text-muted)',
-                background: pathname.startsWith(item.href) ? 'var(--brand-dim)' : 'transparent',
-                border: pathname.startsWith(item.href) ? '1px solid var(--brand-border)' : '1px solid transparent',
-              }}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-3">
-          <ThemeToggle compact />
-          <button
-            onClick={onLogout}
-            disabled={logoutLoading}
-            className="text-[11px] uppercase tracking-widest rounded-lg px-4 py-1.5 transition-all duration-200"
-            style={{
-              color: 'var(--text-muted)',
-              border: '1px solid var(--border)',
-              opacity: logoutLoading ? 0.6 : 1,
-            }}
-          >
-            {logoutLoading ? 'Signing Out...' : 'Sign Out'}
-          </button>
-          <Link
-            href="/profile"
-            className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold cursor-pointer transition-all overflow-hidden no-underline"
-            style={{
-              background: 'var(--brand-dim)',
-              border: '1px solid var(--brand-border)',
-              color: 'var(--brand)',
-            }}
-            aria-label="Open profile"
-          >
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
-            ) : (
-              avatarInitials
-            )}
-          </Link>
-        </div>
-      </header>
-
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
         {/* Hero Section */}

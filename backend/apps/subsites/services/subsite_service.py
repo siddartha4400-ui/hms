@@ -1,5 +1,7 @@
 from django.conf import settings
 from django.contrib.auth.models import User as DjangoUser
+from django.db import transaction
+from django.db.models.deletion import ProtectedError
 
 from apps.attachments.models import Attachment
 from apps.subsites.repositories.subsite_repository import SubsiteRepository
@@ -70,20 +72,28 @@ class SubsiteService:
 		email = (payload.get("email") or "").strip().lower()
 		password = payload.get("password") or ""
 		admin_name = (payload.get("admin_name") or "").strip()
-
-		if not email or not password:
-			raise ApiException("Provide auth_user_id or both email and password for admin user")
-
-		existing = SubsiteRepository.get_auth_user_by_email(email)
-		if existing:
-			raise ApiException("Admin email already exists. Use a different email or provide auth_user_id")
-
 		first_name = admin_name
 		last_name = ""
 		if " " in admin_name:
 			parts = admin_name.split()
 			first_name = parts[0]
 			last_name = " ".join(parts[1:])
+
+		if not email or not password:
+			raise ApiException("Provide auth_user_id or both email and password for admin user")
+
+		existing = SubsiteRepository.get_auth_user_by_email(email)
+		if existing:
+			# Reuse orphaned admin accounts that are no longer attached to any HMS.
+			if not SubsiteRepository.list_hms(auth_user_id=existing.id).exists():
+				existing.first_name = first_name if admin_name else existing.first_name
+				existing.last_name = last_name if admin_name else existing.last_name
+				existing.is_active = True
+				existing.set_password(password)
+				existing.save(update_fields=["first_name", "last_name", "is_active", "password"])
+				return existing
+
+			raise ApiException("Admin email already exists. Use a different email or provide auth_user_id")
 
 		username = email.split("@")[0]
 		candidate = username
@@ -100,6 +110,45 @@ class SubsiteService:
 			last_name=last_name,
 			is_active=True,
 		)
+
+	@staticmethod
+	def _provision_admin_user(admin_user: DjangoUser, mobile_number: str, hms_id: int):
+		"""Create User profile for admin_user with site_admin role and assign group."""
+		from apps.users.models import User as UserProfile
+		from apps.users.services.user_service import _assign_user_group
+		from django.contrib.auth.models import Group
+
+		# Check if User profile already exists
+		existing_profile = UserProfile.objects.filter(auth_user=admin_user).first()
+		if existing_profile:
+			# Ensure existing profile is fully aligned with subsite admin role and HMS scope.
+			if mobile_number and mobile_number != existing_profile.mobile_number:
+				existing_profile.mobile_number = mobile_number
+			existing_profile.hms_id = hms_id
+			existing_profile.role = 1  # site_admin
+			existing_profile.is_verified = True
+			existing_profile.save()
+
+			# Make sure group is site_admin even for reused accounts.
+			site_admin_group = Group.objects.filter(name="site_admin").first()
+			if site_admin_group and not admin_user.groups.filter(id=site_admin_group.id).exists():
+				admin_user.groups.clear()
+				admin_user.groups.add(site_admin_group)
+			else:
+				_assign_user_group(admin_user, existing_profile)
+			return
+
+		# Create new User profile with site_admin role (role=1)
+		user_profile = UserProfile.objects.create(
+			auth_user=admin_user,
+			mobile_number=mobile_number or "",
+			hms_id=hms_id,
+			role=1,  # site_admin
+			is_verified=True,
+		)
+
+		# Assign site_admin group
+		_assign_user_group(admin_user, user_profile)
 
 	@staticmethod
 	def _resolve_attachment(payload: dict):
@@ -132,37 +181,46 @@ class SubsiteService:
 
 	@staticmethod
 	def create_hms(payload: dict, actor=None):
-		validated = SubsiteValidator.validate_create_payload(payload)
-		availability = SubsiteService.check_name_availability(validated["hms_name"])
-		if not availability["is_available"]:
-			raise ApiException("Subsite name already exists")
+		with transaction.atomic():
+			validated = SubsiteValidator.validate_create_payload(payload)
+			availability = SubsiteService.check_name_availability(validated["hms_name"])
+			if not availability["is_available"]:
+				raise ApiException("Subsite name already exists")
 
-		if validated.get("email"):
-			existing_email = SubsiteRepository.get_auth_user_by_email(validated.get("email").strip().lower())
-			if existing_email and not validated.get("auth_user_id"):
-				raise ApiException("Admin email already exists. Use auth_user_id or a different email")
+			if validated.get("email"):
+				existing_email = SubsiteRepository.get_auth_user_by_email(validated.get("email").strip().lower())
+				if (
+					existing_email
+					and not validated.get("auth_user_id")
+					and SubsiteRepository.list_hms(auth_user_id=existing_email.id).exists()
+				):
+					raise ApiException("Admin email already exists. Use auth_user_id or a different email")
 
-		normalized_mobile = SubsiteService._validate_mobile_uniqueness(validated.get("mobile_number", ""))
+			normalized_mobile = SubsiteService._validate_mobile_uniqueness(validated.get("mobile_number", ""))
 
-		admin_user = SubsiteService._resolve_admin_user(validated)
-		attachment = SubsiteService._resolve_attachment(validated)
+			admin_user = SubsiteService._resolve_admin_user(validated)
+			attachment = SubsiteService._resolve_attachment(validated)
 
-		hms = SubsiteRepository.create_hms(
-			hms_name=validated["hms_name"],
-			hms_type=validated["hms_type"],
-			is_active=validated.get("is_active", True),
-			hms_display_name=validated["hms_display_name"],
-			auth_user=admin_user,
-			logo_attachment=attachment,
-			about_hms=validated.get("about_hms", ""),
-			mobile_number=normalized_mobile,
-			time_period=validated.get("time_period", 12),
-			created_by=actor,
-			updated_by=actor,
-		)
-		hms.full_clean()
-		hms.save()
-		return hms
+			hms = SubsiteRepository.create_hms(
+				hms_name=validated["hms_name"],
+				hms_type=validated["hms_type"],
+				is_active=validated.get("is_active", True),
+				hms_display_name=validated["hms_display_name"],
+				auth_user=admin_user,
+				logo_attachment=attachment,
+				about_hms=validated.get("about_hms", ""),
+				mobile_number=normalized_mobile,
+				time_period=validated.get("time_period", 12),
+				created_by=actor,
+				updated_by=actor,
+			)
+			hms.full_clean()
+			hms.save()
+
+			# Create User profile for admin_user with site_admin role
+			SubsiteService._provision_admin_user(admin_user, normalized_mobile, hms.id)
+
+			return hms
 
 	@staticmethod
 	def get_hms(hms_id: int):
@@ -209,4 +267,22 @@ class SubsiteService:
 	@staticmethod
 	def delete_hms(hms_id: int):
 		hms = SubsiteService.get_hms(hms_id)
+		admin_user = hms.auth_user
 		SubsiteRepository.delete_hms(hms)
+		SubsiteService._cleanup_orphan_admin_user(admin_user)
+
+	@staticmethod
+	def _cleanup_orphan_admin_user(admin_user: DjangoUser):
+		"""Delete admin account only when it is no longer linked to any HMS."""
+		if not admin_user:
+			return
+
+		# Keep shared users; only remove users that became orphaned after HMS deletion.
+		if SubsiteRepository.list_hms(auth_user_id=admin_user.id).exists():
+			return
+
+		try:
+			admin_user.delete()
+		except ProtectedError:
+			# If other entities still protect this user, keep it and allow HMS delete to succeed.
+			return

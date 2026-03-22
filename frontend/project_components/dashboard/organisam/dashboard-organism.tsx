@@ -2,16 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQuery } from '@apollo/client/react';
-import {
-  PROFILE_AVATAR_UPDATED_EVENT,
-  getInitials,
-  readStoredProfileIdentity,
-  syncProfileIdentity,
-} from '@/lib/profile-avatar';
 import { getValidAuthToken } from '@/lib/auth-token';
-import { GET_USER_PROFILE_QUERY } from '@/project_components/common-routes/graphql/operations';
-import { LOGOUT_MUTATION } from '@/project_components/login/graphql/operations';
 import DashboardMolecule from '../molecule/dashboard-molecule';
 
 // Types
@@ -149,13 +140,10 @@ const TOP_HOTELS: HotelRow[] = [
 
 export default function DashboardOrganism() {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(() => !getValidAuthToken());
+  // Always start as loading so server and client render the same HTML (avoids hydration mismatch).
+  // The token check runs in useEffect (client-only) and flips isLoading to false.
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'alerts' | 'hotels'>('alerts');
-  const [profileIdentity, setProfileIdentity] = useState(readStoredProfileIdentity());
-  const { data: profileData } = useQuery<DashboardProfileData>(GET_USER_PROFILE_QUERY, {
-    skip: isLoading,
-  });
-  const [logoutMutation, { loading: logoutLoading }] = useMutation(LOGOUT_MUTATION);
 
   useEffect(() => {
     const token = getValidAuthToken();
@@ -165,48 +153,6 @@ export default function DashboardOrganism() {
       setIsLoading(false);
     }
   }, [router]);
-
-  useEffect(() => {
-    const profile = profileData?.getUserProfile;
-    if (!profile) {
-      return;
-    }
-
-    syncProfileIdentity({
-      avatarUrl: profile.profilePictureUrl,
-      firstName: profile.firstName,
-      lastName: profile.lastName,
-      email: profile.email,
-    });
-    setProfileIdentity(readStoredProfileIdentity());
-  }, [profileData]);
-
-  useEffect(() => {
-    const handleProfileUpdate = () => {
-      setProfileIdentity(readStoredProfileIdentity());
-    };
-
-    window.addEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileUpdate as EventListener);
-    return () => {
-      window.removeEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileUpdate as EventListener);
-    };
-  }, []);
-
-  const handleLogout = async () => {
-    const refreshToken = localStorage.getItem('refreshToken');
-
-    if (refreshToken) {
-      try {
-        await logoutMutation({ variables: { refreshToken } });
-      } catch {
-        // Continue with logout even if mutation fails
-      }
-    }
-
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('refreshToken');
-    router.replace('/login');
-  };
 
   if (isLoading) {
     return (
@@ -230,10 +176,6 @@ export default function DashboardOrganism() {
       onTabChange={setActiveTab}
       alerts={RECENT_ALERTS}
       hotels={TOP_HOTELS}
-      avatarUrl={profileIdentity.avatarUrl}
-      avatarInitials={getInitials(profileIdentity.firstName, profileIdentity.lastName, profileIdentity.email)}
-      logoutLoading={logoutLoading}
-      onLogout={handleLogout}
     />
   );
 }

@@ -5,6 +5,14 @@ from apps.subsites.services.subsite_service import SubsiteService
 from common.exceptions import ApiException
 
 
+def _require_root_admin(actor):
+	"""Raise ApiException if actor is not an authenticated root_admin."""
+	if not actor or not actor.is_authenticated:
+		raise ApiException("Authentication required")
+	if not actor.groups.filter(name="root_admin").exists():
+		raise ApiException("Permission denied: only root admins can manage subsites")
+
+
 class CreateHMSMutation(graphene.Mutation):
 	class Arguments:
 		hms_name = graphene.String(required=True)
@@ -29,6 +37,7 @@ class CreateHMSMutation(graphene.Mutation):
 	def mutate(root, info, **kwargs):
 		try:
 			actor = info.context.user if info.context.user and info.context.user.is_authenticated else None
+			_require_root_admin(actor)
 			hms = SubsiteService.create_hms(kwargs, actor=actor)
 			return CreateHMSMutation(
 				success=True,
@@ -63,6 +72,7 @@ class UpdateHMSMutation(graphene.Mutation):
 	def mutate(root, info, hms_id, **kwargs):
 		try:
 			actor = info.context.user if info.context.user and info.context.user.is_authenticated else None
+			_require_root_admin(actor)
 			hms = SubsiteService.update_hms(hms_id, kwargs, actor=actor)
 			return UpdateHMSMutation(
 				success=True,
@@ -85,6 +95,8 @@ class DeleteHMSMutation(graphene.Mutation):
 	@staticmethod
 	def mutate(root, info, hms_id):
 		try:
+			actor = info.context.user if info.context.user and info.context.user.is_authenticated else None
+			_require_root_admin(actor)
 			SubsiteService.delete_hms(hms_id)
 			return DeleteHMSMutation(success=True, message="HMS deleted successfully")
 		except ApiException as exc:

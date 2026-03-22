@@ -9,6 +9,7 @@ import {
 } from '../graphql/operations';
 import RouteMolecule from '../molecule/route_molecule';
 import { clearStoredSession } from '@/lib/auth-token';
+import { AUTH_CHANGED_EVENT } from '@/lib/auth-token';
 
 type LoginMethod = 'password' | 'email_otp' | 'whatsapp_otp';
 
@@ -39,10 +40,10 @@ export default function RouteOrganism() {
         const result = (data as any)?.login;
         if (result?.success && result?.token) {
           localStorage.setItem('authToken', result.token);
-          if (result?.refreshToken) {
-            localStorage.setItem('refreshToken', result.refreshToken);
-          }
-          router.replace('/dashboard');
+          if (result?.refreshToken) localStorage.setItem('refreshToken', result.refreshToken);
+          if (result?.userRole) localStorage.setItem('userRole', result.userRole);
+          window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+          router.replace('/');
           return { success: true, token: result.token, refreshToken: result?.refreshToken };
         }
         return { success: false, message: result?.message || 'Login failed' };
@@ -82,10 +83,10 @@ export default function RouteOrganism() {
         const result = (data as any)?.verifyLoginOtp;
         if (result?.success && result?.token) {
           localStorage.setItem('authToken', result.token);
-          if (result?.refreshToken) {
-            localStorage.setItem('refreshToken', result.refreshToken);
-          }
-          router.replace('/dashboard');
+          if (result?.refreshToken) localStorage.setItem('refreshToken', result.refreshToken);
+          if (result?.userRole) localStorage.setItem('userRole', result.userRole);
+          window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+          router.replace('/');
           return { success: true, token: result.token, refreshToken: result?.refreshToken };
         }
         return { success: false, message: result?.message || 'OTP verification failed' };

@@ -42,6 +42,7 @@ export const LOGIN_MUTATION = gql`
       message
       token
       refreshToken
+      userRole
     }
   }
 `;
@@ -61,6 +62,7 @@ export const VERIFY_LOGIN_OTP_MUTATION = gql`
       message
       token
       refreshToken
+      userRole
     }
   }
 `;

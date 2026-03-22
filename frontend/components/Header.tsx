@@ -1,6 +1,7 @@
 'use client';
+'use client';
 
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@apollo/client/react';
 import { FiLayers } from 'react-icons/fi';
@@ -14,6 +15,12 @@ import {
   readStoredProfileIdentity,
   syncProfileIdentity,
 } from '@/lib/profile-avatar';
+import {
+  AUTH_CHANGED_EVENT,
+  clearStoredSession,
+  getValidAuthToken,
+  getUserRole,
+} from '@/lib/auth-token';
 
 interface HeaderProfileData {
   getUserProfile?: {
@@ -24,75 +31,72 @@ interface HeaderProfileData {
   };
 }
 
+type NavLink = { label: string; href: string };
+
+function buildNavLinks(role: string | null, authed: boolean): NavLink[] {
+  if (!authed) return [];
+  const home: NavLink = { label: 'Home', href: '/' };
+  switch (role) {
+    case 'root_admin':
+      return [
+        home,
+        { label: 'My Bookings', href: '/my-bookings' },
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Subsites', href: '/subsites' },
+        { label: 'Cities', href: '/cities' },
+        { label: 'Bookings', href: '/bookings' },
+      ];
+    case 'site_admin':
+    case 'site_building_manager':
+      return [
+        home,
+        { label: 'My Bookings', href: '/my-bookings' },
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Bookings', href: '/bookings' },
+      ];
+    default: // normal_user or unrecognised
+      return [home, { label: 'My Bookings', href: '/my-bookings' }];
+  }
+}
+
 export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
-  const navLinks = React.useMemo(
-    () => [
-      { label: 'Overview', href: '/dashboard' },
-      { label: 'Subsites', href: '/subsites' },
-      { label: 'Cities', href: '/cities' },
-      { label: 'Bookings', href: '/bookings' },
-      { label: 'My Bookings', href: '/my-bookings' },
-    ],
-    [],
-  );
-  const [profileIdentity, setProfileIdentity] = React.useState({
+
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [profileIdentity, setProfileIdentity] = useState({
     avatarUrl: '',
     initials: 'U',
     firstName: undefined as string | undefined,
     lastName: undefined as string | undefined,
     email: undefined as string | undefined,
   });
-  const { data } = useQuery<HeaderProfileData>(GET_USER_PROFILE_QUERY, {
-    skip: pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/dashboard'),
-  });
-  const [logoutMutation, { loading: logoutLoading }] = useMutation(LOGOUT_MUTATION);
-  const isActiveNav = React.useCallback(
-    (href: string) => {
-      if (href === '/subsites') {
-        return pathname.startsWith('/subsites') || pathname.startsWith('/subsite-dashboard');
-      }
-      if (href === '/cities') {
-        return pathname.startsWith('/cities');
-      }
-      if (href === '/bookings') {
-        return pathname.startsWith('/bookings');
-      }
-      if (href === '/my-bookings') {
-        return pathname.startsWith('/my-bookings');
-      }
-      return pathname.startsWith(href);
-    },
-    [pathname],
-  );
 
-  const handleLogout = React.useCallback(async () => {
-    const refreshToken = localStorage.getItem('refreshToken');
-
-    if (refreshToken) {
-      try {
-        await logoutMutation({ variables: { refreshToken } });
-      } catch {
-        // Clear client session even if server revoke fails.
-      }
+  // Sync auth state on mount and whenever auth changes (login / logout from anywhere).
+  useEffect(() => {
+    function sync() {
+      const token = getValidAuthToken();
+      setIsAuthenticated(Boolean(token));
+      setUserRole(getUserRole());
+      setProfileIdentity(readStoredProfileIdentity());
     }
-
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('refreshToken');
-    router.replace('/login');
-  }, [logoutMutation, router]);
-
-  React.useEffect(() => {
-    setProfileIdentity(readStoredProfileIdentity());
+    sync();
+    window.addEventListener(AUTH_CHANGED_EVENT, sync);
+    window.addEventListener(PROFILE_AVATAR_UPDATED_EVENT, sync as EventListener);
+    return () => {
+      window.removeEventListener(AUTH_CHANGED_EVENT, sync);
+      window.removeEventListener(PROFILE_AVATAR_UPDATED_EVENT, sync as EventListener);
+    };
   }, []);
 
-  React.useEffect(() => {
-    const profile = data?.getUserProfile;
-    if (!profile) {
-      return;
-    }
+  const { data } = useQuery<HeaderProfileData>(GET_USER_PROFILE_QUERY, {
+    skip: !isAuthenticated,
+  });
 
+  useEffect(() => {
+    const profile = data?.getUserProfile;
+    if (!profile) return;
     syncProfileIdentity({
       avatarUrl: profile.profilePictureUrl,
       firstName: profile.firstName,
@@ -102,19 +106,38 @@ export default function Header() {
     setProfileIdentity(readStoredProfileIdentity());
   }, [data]);
 
-  React.useEffect(() => {
-    const handleProfileUpdate = () => {
-      setProfileIdentity(readStoredProfileIdentity());
-    };
+  const [logoutMutation, { loading: logoutLoading }] = useMutation(LOGOUT_MUTATION);
 
-    window.addEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileUpdate as EventListener);
-    return () => {
-      window.removeEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileUpdate as EventListener);
-    };
-  }, []);
+  const handleLogout = useCallback(async () => {
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (refreshToken) {
+      try {
+        await logoutMutation({ variables: { refreshToken } });
+      } catch {
+        // Clear client session even if server logout fails.
+      }
+    }
+    clearStoredSession();
+    setIsAuthenticated(false);
+    setUserRole(null);
+    window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+    router.replace('/');
+  }, [logoutMutation, router]);
 
-  // Login, root, and dashboard (manages its own nav) don't use this header
-  if (pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/dashboard')) return null;
+  const navLinks = buildNavLinks(userRole, isAuthenticated);
+
+  const isActiveNav = useCallback(
+    (href: string) => {
+      if (href === '/') return pathname === '/';
+      if (href === '/subsites') {
+        return pathname.startsWith('/subsites') || pathname.startsWith('/subsite-dashboard');
+      }
+      return pathname.startsWith(href);
+    },
+    [pathname],
+  );
+
+  const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/signup');
 
   return (
     <nav
@@ -126,91 +149,125 @@ export default function Header() {
       }}
     >
       {/* Brand */}
-      <Link href="/dashboard" className="flex items-center gap-2.5 no-underline group">
+      <Link href="/" className="flex items-center gap-2.5 no-underline group shrink-0">
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200"
-          style={{
-            background: 'var(--brand-dim)',
-            border: '1px solid var(--brand-border)',
-          }}
+          style={{ background: 'var(--brand-dim)', border: '1px solid var(--brand-border)' }}
         >
           <FiLayers style={{ color: 'var(--brand)' }} className="text-sm" />
         </div>
         <div className="leading-none">
-          <span className="block text-sm font-bold" style={{ color: 'var(--text-primary)' }}>HotelSphere</span>
-          <span className="hidden md:block text-[9px] uppercase tracking-[.2em]" style={{ color: 'var(--text-muted)' }}>
+          <span className="block text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+            HotelSphere
+          </span>
+          <span
+            className="hidden md:block text-[9px] uppercase tracking-[.2em]"
+            style={{ color: 'var(--text-muted)' }}
+          >
             Hospitality Platform
           </span>
         </div>
       </Link>
 
-      {/* Navigation */}
-      <div className="hidden md:flex items-center gap-7">
-        {navLinks.map((link) => (
-          <Link
-            key={link.label}
-            href={link.href}
-            className="text-[11px] uppercase tracking-widest no-underline transition-all duration-200 px-2 py-1 rounded-md"
-            style={{
-              color: isActiveNav(link.href) ? 'var(--brand)' : 'var(--text-muted)',
-              background: isActiveNav(link.href) ? 'var(--brand-dim)' : 'transparent',
-              border: isActiveNav(link.href) ? '1px solid var(--brand-border)' : '1px solid transparent',
-            }}
-          >
-            {link.label}
-          </Link>
-        ))}
-      </div>
-
-      <div className="md:hidden min-w-[110px]">
-        <select
-          value={navLinks.find((item) => isActiveNav(item.href))?.href || '/dashboard'}
-          onChange={(e) => router.push(e.target.value)}
-          className="h-9 rounded-lg px-2 text-xs w-full"
-          style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
-          aria-label="Navigate sections"
-        >
+      {/* Desktop tab nav — only when authenticated */}
+      {navLinks.length > 0 && (
+        <div className="hidden md:flex items-center gap-1">
           {navLinks.map((link) => (
-            <option key={link.href} value={link.href}>{link.label}</option>
+            <Link
+              key={link.label}
+              href={link.href}
+              className="text-[11px] uppercase tracking-widest no-underline transition-all duration-200 px-2.5 py-1.5 rounded-md"
+              style={{
+                color: isActiveNav(link.href) ? 'var(--brand)' : 'var(--text-muted)',
+                background: isActiveNav(link.href) ? 'var(--brand-dim)' : 'transparent',
+                border: isActiveNav(link.href) ? '1px solid var(--brand-border)' : '1px solid transparent',
+              }}
+            >
+              {link.label}
+            </Link>
           ))}
-        </select>
-      </div>
+        </div>
+      )}
 
-      <div className="flex items-center gap-2 md:gap-3">
+      {/* Mobile dropdown nav */}
+      {navLinks.length > 0 && (
+        <div className="md:hidden min-w-[110px]">
+          <select
+            value={navLinks.find((item) => isActiveNav(item.href))?.href ?? navLinks[0].href}
+            onChange={(e) => router.push(e.target.value)}
+            className="h-9 rounded-lg px-2 text-xs w-full"
+            style={{
+              background: 'var(--bg-input)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-primary)',
+            }}
+            aria-label="Navigate sections"
+          >
+            {navLinks.map((link) => (
+              <option key={link.href} value={link.href}>
+                {link.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Right side: theme toggle + auth controls */}
+      <div className="flex items-center gap-2 md:gap-3 shrink-0">
         <ThemeToggle compact />
-        <button
-          onClick={handleLogout}
-          disabled={logoutLoading}
-          className="text-[10px] md:text-[11px] uppercase tracking-widest rounded-lg px-2.5 md:px-4 py-1.5 transition-all duration-200"
-          style={{
-            color: 'var(--text-secondary)',
-            border: '1px solid var(--border)',
-            opacity: logoutLoading ? 0.6 : 1,
-          }}
-        >
-          {logoutLoading ? 'Signing Out...' : 'Sign Out'}
-        </button>
 
-        <Link
-          href="/profile"
-          className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold cursor-pointer transition-all overflow-hidden no-underline"
-          style={{
-            background: 'var(--brand-dim)',
-            border: '1px solid var(--brand-border)',
-            color: 'var(--brand)',
-          }}
-          aria-label="Open profile"
-        >
-          {profileIdentity.avatarUrl ? (
-            <img
-              src={profileIdentity.avatarUrl}
-              alt="Profile"
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            getInitials(profileIdentity.firstName, profileIdentity.lastName, profileIdentity.email)
-          )}
-        </Link>
+        {isAuthenticated ? (
+          <>
+            <button
+              onClick={handleLogout}
+              disabled={logoutLoading}
+              className="text-[10px] md:text-[11px] uppercase tracking-widest rounded-lg px-2.5 md:px-4 py-1.5 transition-all duration-200"
+              style={{
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border)',
+                opacity: logoutLoading ? 0.6 : 1,
+              }}
+            >
+              {logoutLoading ? 'Signing Out…' : 'Sign Out'}
+            </button>
+
+            {/* Profile avatar — links to profile page */}
+            <Link
+              href="/profile"
+              className="w-9 h-9 rounded-full flex items-center justify-center text-[10px] font-bold cursor-pointer transition-all overflow-hidden no-underline"
+              style={{
+                background: 'var(--brand-dim)',
+                border: '1px solid var(--brand-border)',
+                color: 'var(--brand)',
+              }}
+              aria-label="Open profile"
+            >
+              {profileIdentity.avatarUrl ? (
+                <img
+                  src={profileIdentity.avatarUrl}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                getInitials(profileIdentity.firstName, profileIdentity.lastName, profileIdentity.email)
+              )}
+            </Link>
+          </>
+        ) : (
+          !isAuthPage && (
+            <Link
+              href="/login"
+              className="text-[10px] md:text-[11px] uppercase tracking-widest rounded-lg px-2.5 md:px-4 py-1.5 transition-all duration-200 no-underline inline-flex items-center"
+              style={{
+                color: 'var(--brand)',
+                border: '1px solid var(--brand-border)',
+                background: 'var(--brand-dim)',
+              }}
+            >
+              Login
+            </Link>
+          )
+        )}
       </div>
     </nav>
   );

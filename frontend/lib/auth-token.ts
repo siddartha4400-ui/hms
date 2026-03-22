@@ -1,5 +1,9 @@
 const AUTH_TOKEN_KEY = 'authToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
+const USER_ROLE_KEY = 'userRole';
+
+/** Dispatch this event after any login / logout so all Header instances re-sync. */
+export const AUTH_CHANGED_EVENT = 'hs:auth-changed';
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
@@ -27,6 +31,14 @@ export function clearStoredSession(): void {
 
   localStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(USER_ROLE_KEY);
+}
+
+export function getUserRole(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  return localStorage.getItem(USER_ROLE_KEY);
 }
 
 export function getValidAuthToken(): string | null {

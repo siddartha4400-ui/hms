@@ -184,6 +184,33 @@ class AuthService:
         elif otp_type == 'whatsapp':
             identifier = re.sub(r'\D', '', identifier)
             user = UserRepository.get_user_by_mobile(identifier)
+
+            # Backfill legacy/broken subsite admins where HMS exists but profile row is missing.
+            if not user:
+                from apps.subsites.models import HMS
+                from apps.users.models import User as UserModel
+
+                hms = HMS.objects.select_related('auth_user').filter(mobile_number=identifier).first()
+                if hms and hms.auth_user:
+                    user = UserModel.objects.filter(auth_user=hms.auth_user).first()
+                    if user:
+                        if user.mobile_number != identifier:
+                            user.mobile_number = identifier
+                            user.hms_id = hms.id
+                            user.role = 1
+                            user.is_verified = True
+                            user.save(update_fields=['mobile_number', 'hms_id', 'role', 'is_verified'])
+                    else:
+                        user = UserModel.objects.create(
+                            auth_user=hms.auth_user,
+                            mobile_number=identifier,
+                            hms_id=hms.id,
+                            role=1,
+                            is_verified=True,
+                        )
+
+                    _assign_user_group(hms.auth_user, user)
+
             if not user:
                 raise ApiException('If that number is registered with us, you will receive an OTP')
         else:

@@ -1,16 +1,14 @@
 "use client";
 
 import { useLazyQuery, useMutation, useQuery } from "@apollo/client/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   FiArrowRight,
   FiCalendar,
   FiCheckCircle,
   FiCreditCard,
   FiHome,
-  FiLayers,
   FiLogIn,
-  FiLogOut,
   FiMapPin,
   FiMoon,
   FiShield,
@@ -18,12 +16,15 @@ import {
   FiUsers,
 } from "react-icons/fi";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
-import { ReusableFormModal, ThemedDatePicker } from "@/components";
+import { ThemedDatePicker } from "@/components";
 import AttachmentUploader, { UploadedAttachment } from "@/components/AttachmentUploader";
-import { getValidAuthToken } from "@/lib/auth-token";
-import { LOGIN_MUTATION, LOGOUT_MUTATION } from "@/project_components/login/graphql/operations";
+import { AUTH_CHANGED_EVENT, getValidAuthToken } from "@/lib/auth-token";
+import {
+  LOGIN_MUTATION,
+  VERIFY_LOGIN_OTP_MUTATION,
+} from "@/project_components/login/graphql/operations";
+import RouteMolecule from "@/project_components/login/molecule/route_molecule";
 import { LIST_CITIES_QUERY } from "@/project_components/propertys/graphql/operations";
 
 import { CREATE_BOOKING_MUTATION, SEARCH_AVAILABILITY_QUERY } from "../graphql/operations";
@@ -92,6 +93,7 @@ type LoginResponse = {
     message: string;
     token?: string | null;
     refreshToken?: string | null;
+    userRole?: string | null;
   };
 };
 
@@ -148,16 +150,36 @@ export default function PublicBookingOrganism() {
   const [formError, setFormError] = useState("");
   const [confirmation, setConfirmation] = useState<BookingResponse["createBooking"]["booking"] | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    if (typeof window === "undefined") {
-      return false;
-    }
-    return Boolean(getValidAuthToken());
+    return false;
   });
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pendingBookingAfterLogin, setPendingBookingAfterLogin] = useState(false);
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-  const [loginError, setLoginError] = useState("");
+  const [loginModalError, setLoginModalError] = useState("");
+
+  // Sync auth state on mount and on any AUTH_CHANGED_EVENT (login / logout from Header or modal)
+  useEffect(() => {
+    function sync() {
+      setIsAuthenticated(Boolean(getValidAuthToken()));
+    }
+    sync();
+    window.addEventListener(AUTH_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(AUTH_CHANGED_EVENT, sync);
+  }, []);
+
+  // Close modal on Escape key
+  useEffect(() => {
+    if (!showLoginModal) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { setShowLoginModal(false); setLoginModalError(''); }
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [showLoginModal]);
+
+  function closeLoginModal() {
+    setShowLoginModal(false);
+    setLoginModalError('');
+  }
 
   const { data: cityData } = useQuery<CitiesResponse>(LIST_CITIES_QUERY, {
     variables: { isActive: true },
@@ -168,8 +190,7 @@ export default function PublicBookingOrganism() {
   );
   const [createBooking, { loading: bookingLoading }] = useMutation<BookingResponse>(CREATE_BOOKING_MUTATION);
   const [loginMutation, { loading: loginLoading }] = useMutation<LoginResponse>(LOGIN_MUTATION);
-  const [logoutMutation, { loading: logoutLoading }] = useMutation(LOGOUT_MUTATION);
-  const router = useRouter();
+  const [verifyOtpMutation] = useMutation(VERIFY_LOGIN_OTP_MUTATION);
 
   const nights = stayLength(checkIn, checkOut);
   const results = availabilityData?.searchAvailability || [];
@@ -296,110 +317,85 @@ export default function PublicBookingOrganism() {
     await submitBookingRequest();
   }
 
-  async function handleLoginFromPopup() {
-    setLoginError("");
-    if (!loginEmail.trim() || !loginPassword.trim()) {
-      setLoginError("Email and password are required.");
-      return;
-    }
+  type LoginMethod = "password" | "email_otp" | "whatsapp_otp";
 
-    const response = await loginMutation({
-      variables: {
-        method: "password",
-        email: loginEmail.trim(),
-        password: loginPassword,
-      },
-    });
-
-    const payload = response.data?.login;
-    if (!payload?.success || !payload.token || !payload.refreshToken) {
-      setLoginError(payload?.message || "Login failed.");
-      return;
-    }
-
-    localStorage.setItem("authToken", payload.token);
-    localStorage.setItem("refreshToken", payload.refreshToken);
-    setIsAuthenticated(true);
-    setShowLoginModal(false);
-
-    if (pendingBookingAfterLogin) {
-      setPendingBookingAfterLogin(false);
-      if (!selectedOption) {
-        return;
+  async function handleLoginForModal(
+    method: LoginMethod,
+    credentials: Record<string, string>,
+  ): Promise<{ success: boolean; message?: string }> {
+    setLoginModalError("");
+    try {
+      if (method === "password") {
+        const { data } = await loginMutation({
+          variables: { method: "password", email: credentials.email, password: credentials.password },
+        });
+        const result = (data as any)?.login;
+        if (result?.success && result.token) {
+          localStorage.setItem("authToken", result.token);
+          if (result.refreshToken) localStorage.setItem("refreshToken", result.refreshToken);
+          if (result.userRole) localStorage.setItem("userRole", result.userRole);
+          setIsAuthenticated(true);
+          window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+          setShowLoginModal(false);
+          if (pendingBookingAfterLogin) {
+            setPendingBookingAfterLogin(false);
+            if (selectedOption && validateGuestInputs()) await submitBookingRequest();
+          }
+          return { success: true };
+        }
+        const msg = result?.message || "Login failed.";
+        setLoginModalError(msg);
+        return { success: false, message: msg };
       }
-      if (!validateGuestInputs()) {
-        return;
-      }
-      await submitBookingRequest();
-    }
-  }
 
-  async function handleLogout() {
-    const refreshToken = localStorage.getItem("refreshToken");
-    if (refreshToken) {
-      try {
-        await logoutMutation({ variables: { refreshToken } });
-      } catch {}
+      // OTP methods
+      if (!credentials.otp) {
+        // Step 1: request OTP
+        const isEmail = method === "email_otp";
+        const { data } = await loginMutation({
+          variables: {
+            method,
+            ...(isEmail ? { email: credentials.identifier } : { mobileNumber: credentials.identifier }),
+          },
+        });
+        const result = (data as any)?.login;
+        if (result?.success) return { success: true, message: result.message || "OTP sent" };
+        const msg = result?.message || "Failed to send OTP";
+        setLoginModalError(msg);
+        return { success: false, message: msg };
+      }
+
+      // Step 2: verify OTP
+      const otpType = method === "email_otp" ? "email" : "whatsapp";
+      const { data } = await verifyOtpMutation({
+        variables: { identifier: credentials.identifier, otp: credentials.otp, otpType },
+      });
+      const result = (data as any)?.verifyLoginOtp;
+      if (result?.success && result.token) {
+        localStorage.setItem("authToken", result.token);
+        if (result.refreshToken) localStorage.setItem("refreshToken", result.refreshToken);
+        if (result.userRole) localStorage.setItem("userRole", result.userRole);
+        setIsAuthenticated(true);
+        window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+        setShowLoginModal(false);
+        if (pendingBookingAfterLogin) {
+          setPendingBookingAfterLogin(false);
+          if (selectedOption && validateGuestInputs()) await submitBookingRequest();
+        }
+        return { success: true };
+      }
+      const msg = result?.message || "OTP verification failed";
+      setLoginModalError(msg);
+      return { success: false, message: msg };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "An unexpected error occurred";
+      setLoginModalError(msg);
+      return { success: false, message: msg };
     }
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("refreshToken");
-    setIsAuthenticated(false);
-    router.refresh();
   }
 
   return (
     <div className="min-h-screen bg-[#f6f1e8] text-slate-900">
-      {/* Sticky top navigation */}
-      <nav className="sticky top-0 z-50 border-b border-black/8 bg-[#f6f1e8]/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3 md:px-10 lg:px-12">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#17362e]">
-              <FiLayers className="text-sm text-white" />
-            </div>
-            <div className="leading-none">
-              <span className="block text-sm font-bold text-slate-900">HotelSphere</span>
-              <span className="hidden text-[9px] uppercase tracking-[.2em] text-slate-400 md:block">Hospitality Platform</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 md:gap-3">
-            {isAuthenticated ? (
-              <>
-                <Link
-                  href="/my-bookings"
-                  className="hidden items-center rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 no-underline transition hover:bg-black/5 md:inline-flex"
-                >
-                  My Bookings
-                </Link>
-                <Link
-                  href="/dashboard"
-                  className="hidden items-center rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700 no-underline transition hover:bg-black/5 md:inline-flex"
-                >
-                  Dashboard
-                </Link>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  disabled={logoutLoading}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-black/10 bg-white/60 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-white disabled:opacity-60"
-                >
-                  <FiLogOut className="text-sm" />
-                  <span className="hidden md:inline">{logoutLoading ? "Signing out…" : "Sign out"}</span>
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowLoginModal(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#17362e] px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-[#0f2721]"
-              >
-                <FiLogIn className="text-sm" />
-                Login
-              </button>
-            )}
-          </div>
-        </div>
-      </nav>
-
       <section className="relative overflow-hidden border-b border-black/5 bg-[radial-gradient(circle_at_top_left,_rgba(27,94,73,0.18),_transparent_30%),linear-gradient(135deg,_#f8f5ef_0%,_#e9ddcb_50%,_#f3eee5_100%)]">
         <div className="absolute -left-16 top-12 h-56 w-56 rounded-full bg-[#1b5e49]/10 blur-3xl" />
         <div className="absolute right-0 top-0 h-72 w-72 rounded-full bg-[#c16d3c]/10 blur-3xl" />
@@ -779,36 +775,42 @@ export default function PublicBookingOrganism() {
         </div>
       </section>
 
-      <ReusableFormModal
-        isOpen={showLoginModal}
-        title="Login To Continue Booking"
-        onClose={() => setShowLoginModal(false)}
-        onSave={handleLoginFromPopup}
-        saveLabel={loginLoading ? "Signing In..." : "Login"}
-        saveDisabled={loginLoading}
-      >
-        <label className="block space-y-1 text-sm font-medium text-slate-700">
-          Email
-          <input
-            type="email"
-            value={loginEmail}
-            onChange={(event) => setLoginEmail(event.target.value)}
-            className="h-11 w-full rounded-lg border border-black/10 bg-white px-3"
-            placeholder="you@example.com"
-          />
-        </label>
-        <label className="block space-y-1 text-sm font-medium text-slate-700">
-          Password
-          <input
-            type="password"
-            value={loginPassword}
-            onChange={(event) => setLoginPassword(event.target.value)}
-            className="h-11 w-full rounded-lg border border-black/10 bg-white px-3"
-            placeholder="Enter password"
-          />
-        </label>
-        {loginError ? <p className="text-sm text-red-600">{loginError}</p> : null}
-      </ReusableFormModal>
+      {showLoginModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center"
+          style={{ animation: 'fadeIn 0.18s ease' }}
+          onClick={(e) => { if (e.target === e.currentTarget) closeLoginModal(); }}
+        >
+          <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}} @keyframes slideUp{from{opacity:0;transform:translateY(24px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}`}</style>
+          <div
+            className="w-full max-w-md rounded-[2rem] bg-white p-6 shadow-2xl"
+            style={{ animation: 'slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)' }}
+          >
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Sign in</h2>
+                <p className="mt-0.5 text-sm text-slate-500">Choose how you want to continue</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeLoginModal}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-black/10 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <RouteMolecule
+              onLogin={handleLoginForModal}
+              onError={setLoginModalError}
+              loading={loginLoading}
+              error={loginModalError}
+              onClose={closeLoginModal}
+              compact
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
