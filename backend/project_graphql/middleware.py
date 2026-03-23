@@ -87,9 +87,22 @@ class RequestContextMiddleware:
 
         request.user_id = user.id if user and user.is_authenticated else None
 
-        if getattr(request, "company_id", None) is None:
-            profile = getattr(user, "profile", None) if user and user.is_authenticated else None
-            profile_company_id = getattr(profile, "company_id", None) if profile else None
-            request.company_id = profile_company_id
+        # Attach the user's own HMS id so resolvers can use it for scoping.
+        # We do NOT override company_id here — that comes only from SubsiteContextMiddleware
+        # (host-based) and must stay clean for mutation safety checks.
+        profile_hms_id = None
+        if user and user.is_authenticated and not getattr(user, "is_superuser", False):
+            profile = getattr(user, "profile", None)
+            if profile:
+                cid = getattr(profile, "company_id", None) or None
+                if cid is None:
+                    # Fallback for accounts created before company_id was populated
+                    hid = getattr(profile, "hms_id", None)
+                    cid = hid if hid else None
+                try:
+                    profile_hms_id = int(cid) if cid is not None else None
+                except (TypeError, ValueError):
+                    profile_hms_id = None
+        request.profile_hms_id = profile_hms_id
 
         return next_(root, info, **kwargs)

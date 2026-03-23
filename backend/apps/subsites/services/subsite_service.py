@@ -125,6 +125,7 @@ class SubsiteService:
 			if mobile_number and mobile_number != existing_profile.mobile_number:
 				existing_profile.mobile_number = mobile_number
 			existing_profile.hms_id = hms_id
+			existing_profile.company_id = str(hms_id)
 			existing_profile.role = 1  # site_admin
 			existing_profile.is_verified = True
 			existing_profile.save()
@@ -143,6 +144,7 @@ class SubsiteService:
 			auth_user=admin_user,
 			mobile_number=mobile_number or "",
 			hms_id=hms_id,
+			company_id=str(hms_id),
 			role=1,  # site_admin
 			is_verified=True,
 		)

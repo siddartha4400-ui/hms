@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getValidAuthToken } from '@/lib/auth-token';
+import { getUserRole, getValidAuthToken } from '@/lib/auth-token';
 import DashboardMolecule from '../molecule/dashboard-molecule';
 
 // Types
@@ -149,9 +149,16 @@ export default function DashboardOrganism() {
     const token = getValidAuthToken();
     if (!token) {
       router.replace('/login');
-    } else {
-      setIsLoading(false);
+      return;
     }
+
+    const role = getUserRole();
+    if (role === 'site_admin' || role === 'site_building_manager') {
+      router.replace('/subsite-dashboard');
+      return;
+    }
+
+    setIsLoading(false);
   }, [router]);
 
   if (isLoading) {

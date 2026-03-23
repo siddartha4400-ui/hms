@@ -7,6 +7,7 @@ export const SEARCH_AVAILABILITY_QUERY = gql`
     $checkOut: String!
     $guestCount: Int!
     $hmsName: String
+    $propertyType: String
   ) {
     searchAvailability(
       cityId: $cityId
@@ -14,6 +15,7 @@ export const SEARCH_AVAILABILITY_QUERY = gql`
       checkOut: $checkOut
       guestCount: $guestCount
       hmsName: $hmsName
+      propertyType: $propertyType
     ) {
       inventoryType
       bookingTargetId
@@ -25,6 +27,8 @@ export const SEARCH_AVAILABILITY_QUERY = gql`
       cityName
       buildingId
       buildingName
+      floorId
+      floorNumber
       location
       propertyType
       roomId
@@ -80,6 +84,9 @@ export const CREATE_BOOKING_MUTATION = gql`
         checkOut
         guestCount
         totalAmount
+        bookedByName
+        bookedByEmail
+        primaryGuestMobile
         guests {
           id
           fullName
@@ -87,6 +94,76 @@ export const CREATE_BOOKING_MUTATION = gql`
           aadhaarAttachmentId
           aadhaarAttachmentUrl
         }
+      }
+    }
+  }
+`;
+
+export const APPROVE_BOOKING_MUTATION = gql`
+  mutation ApproveBooking($bookingReference: String!, $hmsId: Int) {
+    approveBooking(bookingReference: $bookingReference, hmsId: $hmsId) {
+      success
+      message
+      booking {
+        id
+        bookingReference
+        status
+      }
+    }
+  }
+`;
+
+export const REJECT_BOOKING_MUTATION = gql`
+  mutation RejectBooking($bookingReference: String!, $hmsId: Int) {
+    rejectBooking(bookingReference: $bookingReference, hmsId: $hmsId) {
+      success
+      message
+      booking {
+        id
+        bookingReference
+        status
+      }
+    }
+  }
+`;
+
+export const CANCEL_BOOKING_MUTATION = gql`
+  mutation CancelBooking($bookingReference: String!, $hmsId: Int) {
+    cancelBooking(bookingReference: $bookingReference, hmsId: $hmsId) {
+      success
+      message
+      booking {
+        id
+        bookingReference
+        status
+      }
+    }
+  }
+`;
+
+export const COMPLETE_BOOKING_MUTATION = gql`
+  mutation CompleteBooking($bookingReference: String!, $hmsId: Int) {
+    completeBooking(bookingReference: $bookingReference, hmsId: $hmsId) {
+      success
+      message
+      booking {
+        id
+        bookingReference
+        status
+      }
+    }
+  }
+`;
+
+export const CHECK_IN_BOOKING_MUTATION = gql`
+  mutation CheckInBooking($bookingReference: String!, $hmsId: Int) {
+    checkInBooking(bookingReference: $bookingReference, hmsId: $hmsId) {
+      success
+      message
+      booking {
+        id
+        bookingReference
+        status
       }
     }
   }
@@ -109,6 +186,9 @@ export const LIST_BOOKINGS_QUERY = gql`
       checkOut
       guestCount
       totalAmount
+      bookedByName
+      bookedByEmail
+      primaryGuestMobile
       createdAtUtc
     }
   }

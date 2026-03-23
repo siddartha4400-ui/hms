@@ -43,11 +43,8 @@ export default function SignupOrganism() {
       });
 
       if (result.data?.signup?.success) {
-        // Store tokens
-        localStorage.setItem('authToken', result.data.signup.authToken);
-        localStorage.setItem('refreshToken', result.data.signup.refreshToken);
-        setStatusMessage('Sign up successful! Redirecting to dashboard...');
-        setTimeout(() => router.replace('/dashboard'), 2000);
+        setStatusMessage(result.data.signup.message || 'Sign up successful! Please login to continue.');
+        setTimeout(() => router.replace('/login'), 2000);
       } else {
         setError(result.data?.signup?.message || 'Sign up failed');
       }

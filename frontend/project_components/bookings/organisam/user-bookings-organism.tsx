@@ -6,20 +6,24 @@ import { useMemo, useState } from "react";
 import BookingListView, { BookingListItem } from "../molecule/booking-list-view";
 import { LIST_BOOKINGS_QUERY } from "../graphql/operations";
 
-type ViewType = "upcoming" | "old";
+type ViewType = "pending" | "today" | "ongoing" | "upcoming" | "cancelled" | "old";
 
 type BookingResponse = {
   listBookings: BookingListItem[];
 };
 
 const TABS: Array<{ key: ViewType; label: string }> = [
+  { key: "pending", label: "Pending Requests" },
+  { key: "today", label: "Today's Bookings" },
+  { key: "ongoing", label: "Ongoing Bookings" },
   { key: "upcoming", label: "Upcoming Bookings" },
+  { key: "cancelled", label: "Cancelled / Rejected" },
   { key: "old", label: "Old Bookings" },
 ];
 
 export default function UserBookingsOrganism() {
-  const [activeTab, setActiveTab] = useState<ViewType>("upcoming");
-  const { data, loading, refetch } = useQuery<BookingResponse>(LIST_BOOKINGS_QUERY, {
+  const [activeTab, setActiveTab] = useState<ViewType>("pending");
+  const { data, loading, error, refetch } = useQuery<BookingResponse>(LIST_BOOKINGS_QUERY, {
     variables: { view: activeTab, mine: true },
     fetchPolicy: "network-only",
   });
@@ -28,6 +32,7 @@ export default function UserBookingsOrganism() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
+      {error ? <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error.message}</div> : null}
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">User Dashboard</p>
@@ -60,7 +65,19 @@ export default function UserBookingsOrganism() {
       ) : (
         <BookingListView
           bookings={bookings}
-          emptyMessage={activeTab === "upcoming" ? "No upcoming bookings found." : "No old bookings found."}
+          emptyMessage={
+            activeTab === "pending"
+              ? "No pending booking requests found."
+              : activeTab === "today"
+                ? "No bookings are scheduled to start today."
+                : activeTab === "ongoing"
+                  ? "No ongoing bookings right now."
+              : activeTab === "upcoming"
+                ? "No upcoming bookings found."
+                : activeTab === "cancelled"
+                  ? "No cancelled or rejected bookings found."
+                  : "No old bookings found."
+          }
         />
       )}
     </div>

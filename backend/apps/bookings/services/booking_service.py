@@ -12,7 +12,57 @@ from common.exceptions import ApiException
 
 
 class BookingService:
-	VALID_VIEWS = {"today", "ongoing", "upcoming", "old"}
+	VALID_VIEWS = {"pending", "today", "ongoing", "upcoming", "old", "cancelled", "relieved"}
+	ADMIN_GROUPS = {"root_admin", "site_admin", "site_building_manager"}
+	APPROVAL_GROUPS = {"root_admin", "site_admin"}
+
+	@staticmethod
+	def _has_any_group(actor, groups) -> bool:
+		return bool(actor and actor.is_authenticated and actor.groups.filter(name__in=list(groups)).exists())
+
+	@staticmethod
+	def _normalize_company_id(company_id):
+		if company_id in (None, ""):
+			return None
+		try:
+			return int(company_id)
+		except (TypeError, ValueError) as exc:
+			raise ApiException("Invalid subsite context", status_code=400) from exc
+
+	@staticmethod
+	def _get_actor_hms_scope(actor):
+		"""Resolve actor HMS scope from profile for non-root admin operations."""
+		if not actor or not getattr(actor, "is_authenticated", False):
+			return None
+		if BookingService._has_any_group(actor, {"root_admin"}):
+			return None
+
+		profile = None
+		try:
+			profile = getattr(actor, "profile", None)
+		except Exception:
+			profile = None
+		if not profile:
+			return None
+
+		raw_scope = getattr(profile, "company_id", None) or getattr(profile, "hms_id", None)
+		if raw_scope in (None, ""):
+			return None
+		try:
+			return int(raw_scope)
+		except (TypeError, ValueError):
+			return None
+
+	@staticmethod
+	def _require_booking_console_access(actor, mine: bool, hms_id=None):
+		if mine:
+			if not actor or not actor.is_authenticated:
+				raise ApiException("Login required", status_code=401)
+			return
+		if not BookingService._has_any_group(actor, BookingService.ADMIN_GROUPS):
+			raise ApiException("Permission denied", status_code=403)
+		if not BookingService._has_any_group(actor, {"root_admin"}) and hms_id is None:
+			raise ApiException("Subsite context required", status_code=403)
 
 	@staticmethod
 	def _booking_reference() -> str:
@@ -33,6 +83,12 @@ class BookingService:
 		created_at_utc = ""
 		if booking.created_at:
 			created_at_utc = booking.created_at.astimezone(dt_timezone.utc).isoformat()
+
+		primary_guest = booking.guests.first() if hasattr(booking, "guests") else None
+		booked_by_name = ""
+		if booking.booked_by:
+			full_name = f"{booking.booked_by.first_name or ''} {booking.booked_by.last_name or ''}".strip()
+			booked_by_name = full_name or booking.booked_by.username
 
 		return {
 			"id": booking.id,
@@ -56,6 +112,9 @@ class BookingService:
 			"guest_count": booking.guest_count,
 			"total_amount": float(booking.total_amount),
 			"special_request": booking.special_request,
+			"booked_by_name": booked_by_name,
+			"booked_by_email": booking.booked_by.email if booking.booked_by else "",
+			"primary_guest_mobile": primary_guest.mobile_number if primary_guest else "",
 			"guests": [BookingService._serialize_guest(guest) for guest in booking.guests.all()],
 			"created_at": booking.created_at.isoformat() if booking.created_at else "",
 			"created_at_utc": created_at_utc,
@@ -65,25 +124,34 @@ class BookingService:
 	def list_bookings(*, view: str = "ongoing", mine: bool = False, hms_id=None, actor=None):
 		requested_view = (view or "ongoing").strip().lower()
 		if requested_view not in BookingService.VALID_VIEWS:
-			raise ApiException("view must be one of: today, ongoing, upcoming, old")
+			raise ApiException("view must be one of: pending, today, ongoing, upcoming, relieved, old, cancelled")
+
+		if hms_id is None and not mine:
+			hms_id = BookingService._get_actor_hms_scope(actor)
+
+		BookingService._require_booking_console_access(actor, mine=mine, hms_id=hms_id)
 
 		user_id = None
 		if mine:
-			if not actor or not actor.is_authenticated:
-				raise ApiException("Login required", status_code=401)
 			user_id = actor.id
 
 		today = timezone.now().date()
 		queryset = BookingRepository.list_bookings(user_id=user_id, hms_id=hms_id)
 
-		if requested_view == "today":
+		if requested_view == "pending":
+			queryset = queryset.filter(status="pending")
+		elif requested_view == "today":
 			queryset = queryset.filter(status="confirmed", check_in=today)
 		elif requested_view == "ongoing":
-			queryset = queryset.filter(status="confirmed", check_in__lte=today, check_out__gt=today)
+			queryset = queryset.filter(status="checked_in")
 		elif requested_view == "upcoming":
 			queryset = queryset.filter(status="confirmed", check_in__gt=today)
+		elif requested_view == "cancelled":
+			queryset = queryset.filter(status__in=["cancelled", "rejected"])
+		elif requested_view == "relieved":
+			queryset = queryset.filter(status="completed")
 		elif requested_view == "old":
-			queryset = queryset.filter(Q(status__in=["cancelled", "completed"]) | Q(status="confirmed", check_out__lte=today))
+			queryset = queryset.filter(Q(status="completed") | Q(status="confirmed", check_out__lte=today))
 
 		return [BookingService._serialize_booking(item) for item in queryset]
 
@@ -93,12 +161,7 @@ class BookingService:
 		if not actor or not actor.is_authenticated:
 			raise ApiException("Login is required to complete the booking", status_code=401)
 
-		normalized_company_id = None
-		if company_id not in (None, ""):
-			try:
-				normalized_company_id = int(company_id)
-			except (TypeError, ValueError):
-				raise ApiException("Invalid subsite context", status_code=400)
+		normalized_company_id = BookingService._normalize_company_id(company_id)
 
 		check_in = BookingValidator.parse_date(payload.get("check_in"), "check_in")
 		check_out = BookingValidator.parse_date(payload.get("check_out"), "check_out")
@@ -113,7 +176,7 @@ class BookingService:
 			"booking_reference": BookingService._booking_reference(),
 			"booked_by": actor,
 			"inventory_type": inventory_type,
-			"status": "confirmed",
+			"status": "pending",
 			"payment_method": payment_method,
 			"guest_count": guest_count,
 			"check_in": check_in,
@@ -143,7 +206,6 @@ class BookingService:
 				}
 			)
 			booking = BookingRepository.create_booking(**booking_data)
-			BookingRepository.update_room(room, status="occupied")
 		elif inventory_type == "bed":
 			if guest_count != 1:
 				raise ApiException("PG bed booking currently supports one guest per booking")
@@ -166,7 +228,6 @@ class BookingService:
 				}
 			)
 			booking = BookingRepository.create_booking(**booking_data)
-			BookingRepository.update_bed(bed, status="occupied")
 		else:
 			raise ApiException("inventory_type must be either room or bed")
 
@@ -187,18 +248,157 @@ class BookingService:
 
 	@staticmethod
 	@transaction.atomic
-	def cancel_booking(booking_reference: str):
-		booking = BookingRepository.get_booking_by_reference(booking_reference)
+	def approve_booking(booking_reference: str, actor=None, company_id=None):
+		if not BookingService._has_any_group(actor, BookingService.APPROVAL_GROUPS):
+			raise ApiException("Only site admins can approve booking requests", status_code=403)
+
+		normalized_company_id = BookingService._normalize_company_id(company_id)
+		if normalized_company_id is None:
+			normalized_company_id = BookingService._get_actor_hms_scope(actor)
+		booking = BookingRepository.get_booking_by_reference_for_update(booking_reference)
 		if not booking:
 			raise ApiException("Booking not found", status_code=404)
-		if booking.status == "cancelled":
-			return BookingService._serialize_booking(booking)
+		if booking.status != "pending":
+			raise ApiException("Only pending bookings can be approved")
+		if not BookingService._has_any_group(actor, {"root_admin"}):
+			if normalized_company_id is None or booking.hms_id != normalized_company_id:
+				raise ApiException("Booking is outside your subsite", status_code=403)
 
-		BookingRepository.cancel_booking(booking)
-		if booking.inventory_type == "room" and booking.room and booking.room.status == "occupied":
-			BookingRepository.update_room(booking.room, status="available")
-		if booking.inventory_type == "bed" and booking.bed and booking.bed.status == "occupied":
-			BookingRepository.update_bed(booking.bed, status="available")
+		if booking.inventory_type == "room":
+			room = BookingRepository.get_room_for_update(booking.room_id)
+			if not room or not room.is_active or room.status != "available":
+				BookingRepository.update_booking(booking, status="cancelled")
+				raise ApiException("This room is no longer available. The request was cancelled.")
+			if BookingRepository.has_overlapping_room_booking(room.id, booking.check_in, booking.check_out):
+				BookingRepository.update_booking(booking, status="cancelled")
+				raise ApiException("This room was already confirmed for another guest. The request was cancelled.")
+			BookingRepository.update_booking(booking, status="confirmed")
+			BookingRepository.update_room(room, status="occupied")
+			BookingRepository.list_overlapping_pending_room_bookings(room.id, booking.check_in, booking.check_out, booking.id).update(status="cancelled")
+		elif booking.inventory_type == "bed":
+			bed = BookingRepository.get_bed_for_update(booking.bed_id)
+			if not bed or not bed.is_active or bed.status != "available":
+				BookingRepository.update_booking(booking, status="cancelled")
+				raise ApiException("This bed is no longer available. The request was cancelled.")
+			if BookingRepository.has_overlapping_bed_booking(bed.id, booking.check_in, booking.check_out):
+				BookingRepository.update_booking(booking, status="cancelled")
+				raise ApiException("This bed was already confirmed for another guest. The request was cancelled.")
+			BookingRepository.update_booking(booking, status="confirmed")
+			BookingRepository.update_bed(bed, status="occupied")
+			BookingRepository.list_overlapping_pending_bed_bookings(bed.id, booking.check_in, booking.check_out, booking.id).update(status="cancelled")
+		else:
+			raise ApiException("inventory_type must be either room or bed")
 
+		booking = BookingRepository.get_booking(booking.id)
+		return BookingService._serialize_booking(booking)
+
+	@staticmethod
+	@transaction.atomic
+	def reject_booking(booking_reference: str, actor=None, company_id=None):
+		if not BookingService._has_any_group(actor, BookingService.APPROVAL_GROUPS):
+			raise ApiException("Only site admins can reject booking requests", status_code=403)
+
+		normalized_company_id = BookingService._normalize_company_id(company_id)
+		if normalized_company_id is None:
+			normalized_company_id = BookingService._get_actor_hms_scope(actor)
+		booking = BookingRepository.get_booking_by_reference_for_update(booking_reference)
+		if not booking:
+			raise ApiException("Booking not found", status_code=404)
+		if booking.status != "pending":
+			raise ApiException("Only pending bookings can be rejected")
+		if not BookingService._has_any_group(actor, {"root_admin"}):
+			if normalized_company_id is None or booking.hms_id != normalized_company_id:
+				raise ApiException("Booking is outside your subsite", status_code=403)
+
+		BookingRepository.update_booking(booking, status="rejected")
+		booking = BookingRepository.get_booking(booking.id)
+		return BookingService._serialize_booking(booking)
+
+	@staticmethod
+	@transaction.atomic
+	def cancel_booking(booking_reference: str, actor=None, company_id=None):
+		if not BookingService._has_any_group(actor, BookingService.APPROVAL_GROUPS):
+			raise ApiException("Only site admins can cancel bookings", status_code=403)
+
+		normalized_company_id = BookingService._normalize_company_id(company_id)
+		if normalized_company_id is None:
+			normalized_company_id = BookingService._get_actor_hms_scope(actor)
+
+		booking = BookingRepository.get_booking_by_reference_for_update(booking_reference)
+		if not booking:
+			raise ApiException("Booking not found", status_code=404)
+		if booking.status in {"cancelled", "rejected", "completed"}:
+			raise ApiException("Booking cannot be cancelled in current status")
+		if not BookingService._has_any_group(actor, {"root_admin"}):
+			if normalized_company_id is None or booking.hms_id != normalized_company_id:
+				raise ApiException("Booking is outside your subsite", status_code=403)
+
+		was_confirmed = booking.status in {"confirmed", "checked_in"}
+		BookingRepository.update_booking(booking, status="cancelled")
+
+		if was_confirmed and booking.inventory_type == "room" and booking.room_id:
+			room = BookingRepository.get_room_for_update(booking.room_id)
+			if room and room.status == "occupied":
+				BookingRepository.update_room(room, status="available")
+		if was_confirmed and booking.inventory_type == "bed" and booking.bed_id:
+			bed = BookingRepository.get_bed_for_update(booking.bed_id)
+			if bed and bed.status == "occupied":
+				BookingRepository.update_bed(bed, status="available")
+
+		booking = BookingRepository.get_booking(booking.id)
+		return BookingService._serialize_booking(booking)
+
+	@staticmethod
+	@transaction.atomic
+	def complete_booking(booking_reference: str, actor=None, company_id=None):
+		if not BookingService._has_any_group(actor, BookingService.APPROVAL_GROUPS):
+			raise ApiException("Only site admins can relieve bookings", status_code=403)
+
+		normalized_company_id = BookingService._normalize_company_id(company_id)
+		if normalized_company_id is None:
+			normalized_company_id = BookingService._get_actor_hms_scope(actor)
+
+		booking = BookingRepository.get_booking_by_reference_for_update(booking_reference)
+		if not booking:
+			raise ApiException("Booking not found", status_code=404)
+		if booking.status not in {"confirmed", "checked_in"}:
+			raise ApiException("Only confirmed or checked-in bookings can be relieved")
+		if not BookingService._has_any_group(actor, {"root_admin"}):
+			if normalized_company_id is None or booking.hms_id != normalized_company_id:
+				raise ApiException("Booking is outside your subsite", status_code=403)
+
+		BookingRepository.update_booking(booking, status="completed")
+		if booking.inventory_type == "room" and booking.room_id:
+			room = BookingRepository.get_room_for_update(booking.room_id)
+			if room and room.status == "occupied":
+				BookingRepository.update_room(room, status="available")
+		if booking.inventory_type == "bed" and booking.bed_id:
+			bed = BookingRepository.get_bed_for_update(booking.bed_id)
+			if bed and bed.status == "occupied":
+				BookingRepository.update_bed(bed, status="available")
+
+		booking = BookingRepository.get_booking(booking.id)
+		return BookingService._serialize_booking(booking)
+
+	@staticmethod
+	@transaction.atomic
+	def check_in_booking(booking_reference: str, actor=None, company_id=None):
+		if not BookingService._has_any_group(actor, BookingService.APPROVAL_GROUPS):
+			raise ApiException("Only site admins can check in guests", status_code=403)
+
+		normalized_company_id = BookingService._normalize_company_id(company_id)
+		if normalized_company_id is None:
+			normalized_company_id = BookingService._get_actor_hms_scope(actor)
+
+		booking = BookingRepository.get_booking_by_reference_for_update(booking_reference)
+		if not booking:
+			raise ApiException("Booking not found", status_code=404)
+		if booking.status != "confirmed":
+			raise ApiException("Only confirmed bookings can be checked in")
+		if not BookingService._has_any_group(actor, {"root_admin"}):
+			if normalized_company_id is None or booking.hms_id != normalized_company_id:
+				raise ApiException("Booking is outside your subsite", status_code=403)
+
+		BookingRepository.update_booking(booking, status="checked_in")
 		booking = BookingRepository.get_booking(booking.id)
 		return BookingService._serialize_booking(booking)

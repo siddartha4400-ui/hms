@@ -273,7 +273,7 @@ export default function SubsitesOrganism() {
           </p>
           <div className="mt-3">
             <Link
-              href="/subsite-dashboard"
+              href={editingId ? `/subsite-dashboard?subsiteId=${editingId}` : '/subsite-dashboard'}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg no-underline text-xs font-medium"
               style={{ background: 'var(--brand-dim)', color: 'var(--brand-light)', border: '1px solid var(--brand-border)' }}
             >
@@ -485,6 +485,13 @@ export default function SubsitesOrganism() {
                       </td>
                       <td className="py-3">
                         <div className="flex flex-wrap gap-2">
+                          <Link
+                            href={`/subsite-dashboard?subsiteId=${row.id}`}
+                            className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs no-underline transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
+                            style={{ border: '1px solid var(--border)', color: 'var(--brand-light)', background: 'var(--brand-dim)' }}
+                          >
+                            Open Dashboard
+                          </Link>
                           <button
                             type="button"
                             onClick={() => handleEdit(row)}

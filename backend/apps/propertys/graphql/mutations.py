@@ -5,6 +5,13 @@ from apps.propertys.services import PropertyService
 from common.exceptions import ApiException
 
 
+def _require_root_admin(actor):
+    if not actor or not actor.is_authenticated:
+        raise ApiException("Authentication required")
+    if not actor.groups.filter(name="root_admin").exists():
+        raise ApiException("Only root_admin can manage cities")
+
+
 class _BaseResult(graphene.ObjectType):
     success = graphene.Boolean()
     message = graphene.String()
@@ -25,6 +32,7 @@ class CreateCityMutation(graphene.Mutation):
     def mutate(root, info, **kwargs):
         actor = info.context.user if info.context.user and info.context.user.is_authenticated else None
         try:
+            _require_root_admin(actor)
             city = PropertyService.create_city(kwargs, actor=actor)
             return CreateCityMutation(success=True, message="City created", city=CityType(**city))
         except ApiException as exc:
@@ -47,6 +55,7 @@ class UpdateCityMutation(graphene.Mutation):
     def mutate(root, info, city_id, **kwargs):
         actor = info.context.user if info.context.user and info.context.user.is_authenticated else None
         try:
+            _require_root_admin(actor)
             city = PropertyService.update_city(city_id, kwargs, actor=actor)
             return UpdateCityMutation(success=True, message="City updated", city=CityType(**city))
         except ApiException as exc:
@@ -62,7 +71,9 @@ class DeleteCityMutation(graphene.Mutation):
 
     @staticmethod
     def mutate(root, info, city_id):
+        actor = info.context.user if info.context.user and info.context.user.is_authenticated else None
         try:
+            _require_root_admin(actor)
             PropertyService.delete_city(city_id)
             return DeleteCityMutation(success=True, message="City deleted")
         except ApiException as exc:

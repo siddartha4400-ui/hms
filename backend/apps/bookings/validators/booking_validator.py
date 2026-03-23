@@ -32,9 +32,11 @@ class BookingValidator:
 
 	@staticmethod
 	def validate_payment_method(value: str) -> str:
-		normalized = (value or "cod").strip().lower()
-		if normalized != "cod":
-			raise ApiException("Only cash on delivery is supported right now")
+		normalized = (value or "manual_booking").strip().lower()
+		if normalized == "cod":
+			return "manual_booking"
+		if normalized != "manual_booking":
+			raise ApiException("Only manual booking requests are supported right now")
 		return normalized
 
 	@staticmethod

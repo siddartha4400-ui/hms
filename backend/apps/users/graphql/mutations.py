@@ -63,6 +63,7 @@ class LoginMutation(graphene.Mutation):
     token = graphene.String()
     refresh_token = graphene.String()
     user_role = graphene.String()
+    hms_id = graphene.Int()
     available_routes = graphene.List(RouteType)
     
     @staticmethod
@@ -144,6 +145,7 @@ class LoginMutation(graphene.Mutation):
                     token=token,
                     refresh_token=str(refresh_token_obj),
                     user_role=role_name,
+                    hms_id=user.hms_id if user else None,
                     available_routes=available_routes,
                 )
             
@@ -191,6 +193,7 @@ class VerifyLoginOTPMutation(graphene.Mutation):
     token = graphene.String()
     refresh_token = graphene.String()
     user_role = graphene.String()
+    hms_id = graphene.Int()
     available_routes = graphene.List(RouteType)
     
     @staticmethod
@@ -215,6 +218,7 @@ class VerifyLoginOTPMutation(graphene.Mutation):
                 token=token,
                 refresh_token=str(refresh_token_obj),
                 user_role=role_name,
+                hms_id=user.hms_id if user else None,
                 available_routes=available_routes,
             )
         except ApiException as e:

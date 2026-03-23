@@ -20,7 +20,7 @@ class BookingRepository:
 			queryset = queryset.filter(booked_by_id=user_id)
 		if hms_id is not None:
 			queryset = queryset.filter(hms_id=hms_id)
-		return queryset.order_by("-created_at")
+		return queryset.order_by("-updated_at", "-id")
 
 	@staticmethod
 	def list_available_lodge_rooms(*, city_id=None, hms_name=None):
@@ -76,6 +76,24 @@ class BookingRepository:
 		).filter(
 			Q(check_in__lt=check_out) & Q(check_out__gt=check_in)
 		).exists()
+
+	@staticmethod
+	def list_overlapping_pending_room_bookings(room_id: int, check_in, check_out, exclude_booking_id: int):
+		return Booking.objects.filter(
+			room_id=room_id,
+			status="pending",
+		).exclude(id=exclude_booking_id).filter(
+			Q(check_in__lt=check_out) & Q(check_out__gt=check_in)
+		)
+
+	@staticmethod
+	def list_overlapping_pending_bed_bookings(bed_id: int, check_in, check_out, exclude_booking_id: int):
+		return Booking.objects.filter(
+			bed_id=bed_id,
+			status="pending",
+		).exclude(id=exclude_booking_id).filter(
+			Q(check_in__lt=check_out) & Q(check_out__gt=check_in)
+		)
 
 	@staticmethod
 	def get_room_for_update(room_id: int):
@@ -142,6 +160,20 @@ class BookingRepository:
 			"bed",
 			"booked_by",
 		).prefetch_related("guests", "guests__aadhaar_attachment").filter(booking_reference=booking_reference).first()
+
+	@staticmethod
+	def get_booking_by_reference_for_update(booking_reference: str):
+		# Keep FOR UPDATE on Booking row only. Joining nullable relations (room/bed)
+		# in the locking query triggers Postgres error:
+		# "FOR UPDATE cannot be applied to the nullable side of an outer join".
+		return Booking.objects.select_for_update().filter(booking_reference=booking_reference).first()
+
+	@staticmethod
+	def update_booking(booking, **kwargs):
+		for key, value in kwargs.items():
+			setattr(booking, key, value)
+		booking.save()
+		return booking
 
 	@staticmethod
 	def cancel_booking(booking):

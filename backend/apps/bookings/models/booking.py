@@ -7,13 +7,16 @@ from apps.subsites.models import HMS
 
 
 BOOKING_STATUS_CHOICES = [
+	("pending", "Pending Approval"),
 	("confirmed", "Confirmed"),
+	("checked_in", "Checked In"),
+	("rejected", "Rejected"),
 	("cancelled", "Cancelled"),
 	("completed", "Completed"),
 ]
 
 PAYMENT_METHOD_CHOICES = [
-	("cod", "Cash On Delivery"),
+	("manual_booking", "Manual Booking"),
 ]
 
 INVENTORY_TYPE_CHOICES = [
@@ -37,8 +40,8 @@ class Booking(models.Model):
 		related_name="property_bookings",
 	)
 	inventory_type = models.CharField(max_length=10, choices=INVENTORY_TYPE_CHOICES)
-	status = models.CharField(max_length=20, choices=BOOKING_STATUS_CHOICES, default="confirmed")
-	payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default="cod")
+	status = models.CharField(max_length=20, choices=BOOKING_STATUS_CHOICES, default="pending")
+	payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default="manual_booking")
 	guest_count = models.PositiveIntegerField(default=1)
 	check_in = models.DateField()
 	check_out = models.DateField()

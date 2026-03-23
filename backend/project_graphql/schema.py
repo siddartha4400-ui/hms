@@ -65,7 +65,11 @@ class Mutation(graphene.ObjectType):
 
     # Booking mutations
     create_booking = BookingsMutation.create_booking
+    approve_booking = BookingsMutation.approve_booking
+    reject_booking = BookingsMutation.reject_booking
     cancel_booking = BookingsMutation.cancel_booking
+    complete_booking = BookingsMutation.complete_booking
+    check_in_booking = BookingsMutation.check_in_booking
 
 
 schema = graphene.Schema(query=Query, mutation=Mutation)

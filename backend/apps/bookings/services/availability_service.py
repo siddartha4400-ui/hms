@@ -1,5 +1,6 @@
 from apps.bookings.repositories.booking_repository import BookingRepository
 from apps.bookings.validators.booking_validator import BookingValidator
+from common.exceptions import ApiException
 
 
 class AvailabilityService:
@@ -18,6 +19,8 @@ class AvailabilityService:
 			"city_name": room.building.city.city_name,
 			"building_id": room.building_id,
 			"building_name": room.building.name,
+			"floor_id": room.floor_id,
+			"floor_number": room.floor.floor_number if room.floor else None,
 			"location": room.building.location,
 			"property_type": room.building.property_type,
 			"room_id": room.id,
@@ -47,6 +50,8 @@ class AvailabilityService:
 			"city_name": bed.room.building.city.city_name,
 			"building_id": bed.room.building_id,
 			"building_name": bed.room.building.name,
+			"floor_id": bed.room.floor_id,
+			"floor_number": bed.room.floor.floor_number if bed.room.floor else None,
 			"location": bed.room.building.location,
 			"property_type": bed.room.building.property_type,
 			"room_id": bed.room_id,
@@ -69,18 +74,22 @@ class AvailabilityService:
 		guest_count = BookingValidator.validate_guest_count(payload.get("guest_count") or payload.get("guests") or 1)
 		city_id = payload.get("city_id")
 		hms_name = (payload.get("hms_name") or "").strip() or None
+		property_type = (payload.get("property_type") or "both").strip().lower()
+		if property_type not in {"both", "pg", "lodge"}:
+			raise ApiException("property_type must be one of both, pg, lodge")
 
 		results = []
 
-		if guest_count == 1:
+		if property_type in {"both", "pg"} and guest_count == 1:
 			for bed in BookingRepository.list_available_pg_beds(city_id=city_id, hms_name=hms_name):
 				if not BookingRepository.has_overlapping_bed_booking(bed.id, check_in, check_out):
 					results.append(AvailabilityService._serialize_bed_option(bed, check_in, check_out))
 
-		for room in BookingRepository.list_available_lodge_rooms(city_id=city_id, hms_name=hms_name):
-			if not BookingRepository.has_overlapping_room_booking(room.id, check_in, check_out):
-				if (room.capacity or 0) not in [0, None] and guest_count > room.capacity:
-					continue
-				results.append(AvailabilityService._serialize_room_option(room, check_in, check_out))
+		if property_type in {"both", "lodge"}:
+			for room in BookingRepository.list_available_lodge_rooms(city_id=city_id, hms_name=hms_name):
+				if not BookingRepository.has_overlapping_room_booking(room.id, check_in, check_out):
+					if (room.capacity or 0) not in [0, None] and guest_count > room.capacity:
+						continue
+					results.append(AvailabilityService._serialize_room_option(room, check_in, check_out))
 
 		return results

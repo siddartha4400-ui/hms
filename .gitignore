@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 *.pyd
 venv/
+/backend/media/
 
 # Node
 node_modules/
@@ -14,4 +15,4 @@ node_modules/
 
 # OS
 .DS_Store
-Thumbs.dbbackend/.env
+Thumbs.db

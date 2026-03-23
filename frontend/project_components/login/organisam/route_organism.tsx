@@ -8,8 +8,7 @@ import {
   VERIFY_LOGIN_OTP_MUTATION,
 } from '../graphql/operations';
 import RouteMolecule from '../molecule/route_molecule';
-import { clearStoredSession } from '@/lib/auth-token';
-import { AUTH_CHANGED_EVENT } from '@/lib/auth-token';
+import { clearStoredSession, storeUserHmsId, AUTH_CHANGED_EVENT } from '@/lib/auth-token';
 
 type LoginMethod = 'password' | 'email_otp' | 'whatsapp_otp';
 
@@ -42,6 +41,7 @@ export default function RouteOrganism() {
           localStorage.setItem('authToken', result.token);
           if (result?.refreshToken) localStorage.setItem('refreshToken', result.refreshToken);
           if (result?.userRole) localStorage.setItem('userRole', result.userRole);
+          storeUserHmsId(result?.hmsId ?? null);
           window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
           router.replace('/');
           return { success: true, token: result.token, refreshToken: result?.refreshToken };
@@ -85,6 +85,7 @@ export default function RouteOrganism() {
           localStorage.setItem('authToken', result.token);
           if (result?.refreshToken) localStorage.setItem('refreshToken', result.refreshToken);
           if (result?.userRole) localStorage.setItem('userRole', result.userRole);
+          storeUserHmsId(result?.hmsId ?? null);
           window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
           router.replace('/');
           return { success: true, token: result.token, refreshToken: result?.refreshToken };

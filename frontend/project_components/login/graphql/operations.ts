@@ -43,6 +43,7 @@ export const LOGIN_MUTATION = gql`
       token
       refreshToken
       userRole
+      hmsId
     }
   }
 `;
@@ -63,6 +64,7 @@ export const VERIFY_LOGIN_OTP_MUTATION = gql`
       token
       refreshToken
       userRole
+      hmsId
     }
   }
 `;

@@ -40,6 +40,9 @@ class BookingType(graphene.ObjectType):
 	guest_count = graphene.Int()
 	total_amount = graphene.Float()
 	special_request = graphene.String()
+	booked_by_name = graphene.String()
+	booked_by_email = graphene.String()
+	primary_guest_mobile = graphene.String()
 	guests = graphene.List(BookingGuestType)
 	created_at = graphene.String()
 	created_at_utc = graphene.String()
@@ -67,28 +70,115 @@ class CreateBookingMutation(graphene.Mutation):
 		company_id = getattr(info.context, "company_id", None)
 		try:
 			booking = BookingService.create_booking(kwargs, actor=actor, company_id=company_id)
-			return CreateBookingMutation(success=True, message="Booking confirmed", booking=BookingType(**booking))
+			return CreateBookingMutation(success=True, message="Booking request sent to site admin", booking=BookingType(**booking))
 		except ApiException as exc:
 			return CreateBookingMutation(success=False, message=str(exc), booking=None)
 
 
-class CancelBookingMutation(graphene.Mutation):
+class ApproveBookingMutation(graphene.Mutation):
 	class Arguments:
 		booking_reference = graphene.String(required=True)
+		hms_id = graphene.Int()
 
 	success = graphene.Boolean()
 	message = graphene.String()
 	booking = graphene.Field(BookingType)
 
 	@staticmethod
-	def mutate(root, info, booking_reference):
+	def mutate(root, info, booking_reference, hms_id=None):
+		actor = info.context.user if info.context.user and info.context.user.is_authenticated else None
+		company_id = getattr(info.context, "company_id", None) or hms_id or getattr(info.context, "profile_hms_id", None)
 		try:
-			booking = BookingService.cancel_booking(booking_reference)
+			booking = BookingService.approve_booking(booking_reference, actor=actor, company_id=company_id)
+			return ApproveBookingMutation(success=True, message="Booking approved", booking=BookingType(**booking))
+		except ApiException as exc:
+			return ApproveBookingMutation(success=False, message=str(exc), booking=None)
+
+
+class RejectBookingMutation(graphene.Mutation):
+	class Arguments:
+		booking_reference = graphene.String(required=True)
+		hms_id = graphene.Int()
+
+	success = graphene.Boolean()
+	message = graphene.String()
+	booking = graphene.Field(BookingType)
+
+	@staticmethod
+	def mutate(root, info, booking_reference, hms_id=None):
+		actor = info.context.user if info.context.user and info.context.user.is_authenticated else None
+		company_id = getattr(info.context, "company_id", None) or hms_id or getattr(info.context, "profile_hms_id", None)
+		try:
+			booking = BookingService.reject_booking(booking_reference, actor=actor, company_id=company_id)
+			return RejectBookingMutation(success=True, message="Booking rejected", booking=BookingType(**booking))
+		except ApiException as exc:
+			return RejectBookingMutation(success=False, message=str(exc), booking=None)
+
+
+class CancelBookingMutation(graphene.Mutation):
+	class Arguments:
+		booking_reference = graphene.String(required=True)
+		hms_id = graphene.Int()
+
+	success = graphene.Boolean()
+	message = graphene.String()
+	booking = graphene.Field(BookingType)
+
+	@staticmethod
+	def mutate(root, info, booking_reference, hms_id=None):
+		actor = info.context.user if info.context.user and info.context.user.is_authenticated else None
+		company_id = getattr(info.context, "company_id", None) or hms_id or getattr(info.context, "profile_hms_id", None)
+		try:
+			booking = BookingService.cancel_booking(booking_reference, actor=actor, company_id=company_id)
 			return CancelBookingMutation(success=True, message="Booking cancelled", booking=BookingType(**booking))
 		except ApiException as exc:
 			return CancelBookingMutation(success=False, message=str(exc), booking=None)
 
 
+class CompleteBookingMutation(graphene.Mutation):
+	class Arguments:
+		booking_reference = graphene.String(required=True)
+		hms_id = graphene.Int()
+
+	success = graphene.Boolean()
+	message = graphene.String()
+	booking = graphene.Field(BookingType)
+
+	@staticmethod
+	def mutate(root, info, booking_reference, hms_id=None):
+		actor = info.context.user if info.context.user and info.context.user.is_authenticated else None
+		company_id = getattr(info.context, "company_id", None) or hms_id or getattr(info.context, "profile_hms_id", None)
+		try:
+			booking = BookingService.complete_booking(booking_reference, actor=actor, company_id=company_id)
+			return CompleteBookingMutation(success=True, message="Guest relieved and booking completed", booking=BookingType(**booking))
+		except ApiException as exc:
+			return CompleteBookingMutation(success=False, message=str(exc), booking=None)
+
+
+class CheckInBookingMutation(graphene.Mutation):
+	class Arguments:
+		booking_reference = graphene.String(required=True)
+		hms_id = graphene.Int()
+
+	success = graphene.Boolean()
+	message = graphene.String()
+	booking = graphene.Field(BookingType)
+
+	@staticmethod
+	def mutate(root, info, booking_reference, hms_id=None):
+		actor = info.context.user if info.context.user and info.context.user.is_authenticated else None
+		company_id = getattr(info.context, "company_id", None) or hms_id or getattr(info.context, "profile_hms_id", None)
+		try:
+			booking = BookingService.check_in_booking(booking_reference, actor=actor, company_id=company_id)
+			return CheckInBookingMutation(success=True, message="Guest checked in successfully", booking=BookingType(**booking))
+		except ApiException as exc:
+			return CheckInBookingMutation(success=False, message=str(exc), booking=None)
+
+
 class Mutation(graphene.ObjectType):
 	create_booking = CreateBookingMutation.Field()
+	approve_booking = ApproveBookingMutation.Field()
+	reject_booking = RejectBookingMutation.Field()
 	cancel_booking = CancelBookingMutation.Field()
+	complete_booking = CompleteBookingMutation.Field()
+	check_in_booking = CheckInBookingMutation.Field()

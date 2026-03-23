@@ -5,8 +5,7 @@ export const SIGNUP_MUTATION = gql`
     signup(email: $email, password: $password, passwordConfirm: $passwordConfirm, mobileNumber: $mobileNumber, firstName: $firstName, lastName: $lastName) {
       success
       message
-      authToken: token
-      refreshToken
+      user
     }
   }
 `;

@@ -1,5 +1,4 @@
 'use client';
-'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -34,15 +33,17 @@ interface HeaderProfileData {
 type NavLink = { label: string; href: string };
 
 function buildNavLinks(role: string | null, authed: boolean): NavLink[] {
-  if (!authed) return [];
   const home: NavLink = { label: 'Home', href: '/' };
+  if (!authed) {
+    return [home];
+  }
   switch (role) {
     case 'root_admin':
       return [
         home,
         { label: 'My Bookings', href: '/my-bookings' },
         { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Subsites', href: '/subsites' },
+        { label: 'Subsite Dashboard', href: '/subsite-dashboard' },
         { label: 'Cities', href: '/cities' },
         { label: 'Bookings', href: '/bookings' },
       ];
@@ -52,6 +53,7 @@ function buildNavLinks(role: string | null, authed: boolean): NavLink[] {
         home,
         { label: 'My Bookings', href: '/my-bookings' },
         { label: 'Dashboard', href: '/dashboard' },
+        { label: 'Subsite Dashboard', href: '/subsite-dashboard' },
         { label: 'Bookings', href: '/bookings' },
       ];
     default: // normal_user or unrecognised
@@ -129,8 +131,8 @@ export default function Header() {
   const isActiveNav = useCallback(
     (href: string) => {
       if (href === '/') return pathname === '/';
-      if (href === '/subsites') {
-        return pathname.startsWith('/subsites') || pathname.startsWith('/subsite-dashboard');
+      if (href === '/subsite-dashboard') {
+        return pathname.startsWith('/subsite-dashboard');
       }
       return pathname.startsWith(href);
     },

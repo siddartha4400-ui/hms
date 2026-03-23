@@ -15,6 +15,8 @@ class AvailabilityOptionType(graphene.ObjectType):
 	city_name = graphene.String()
 	building_id = graphene.Int()
 	building_name = graphene.String()
+	floor_id = graphene.Int()
+	floor_number = graphene.Int()
 	location = graphene.String()
 	property_type = graphene.String()
 	room_id = graphene.Int()
@@ -59,6 +61,9 @@ class BookingType(graphene.ObjectType):
 	guest_count = graphene.Int()
 	total_amount = graphene.Float()
 	special_request = graphene.String()
+	booked_by_name = graphene.String()
+	booked_by_email = graphene.String()
+	primary_guest_mobile = graphene.String()
 	guests = graphene.List(BookingGuestType)
 	created_at = graphene.String()
 	created_at_utc = graphene.String()
@@ -72,12 +77,13 @@ class Query(graphene.ObjectType):
 		check_out=graphene.String(required=True),
 		guest_count=graphene.Int(required=True),
 		hms_name=graphene.String(),
+		property_type=graphene.String(),
 	)
 	list_bookings = graphene.List(
 		BookingType,
 		view=graphene.String(required=True),
 		mine=graphene.Boolean(),
-		hms_id=graphene.Int(),
+		hms_id=graphene.Int(),  # explicit override from frontend
 	)
 
 	def resolve_search_availability(self, info, **kwargs):
@@ -89,6 +95,12 @@ class Query(graphene.ObjectType):
 	def resolve_list_bookings(self, info, view, mine=False, hms_id=None):
 		actor = info.context.user if info.context.user and info.context.user.is_authenticated else None
 		if hms_id is None:
+			# Prefer host-based subsite context (set when request comes via subsite domain).
 			hms_id = getattr(info.context, "company_id", None)
+		if hms_id is None and not mine:
+			# For admin views (mine=False) with no host context, scope to the admin's own HMS
+			# (profile_hms_id is set by RequestContextMiddleware from the user profile).
+			# Do NOT apply this for mine=True - users should see all their bookings.
+			hms_id = getattr(info.context, "profile_hms_id", None)
 		items = BookingService.list_bookings(view=view, mine=mine, hms_id=hms_id, actor=actor)
 		return [BookingType(**item) for item in items]

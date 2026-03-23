@@ -1,6 +1,7 @@
 const AUTH_TOKEN_KEY = 'authToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 const USER_ROLE_KEY = 'userRole';
+const USER_HMS_ID_KEY = 'userHmsId';
 
 /** Dispatch this event after any login / logout so all Header instances re-sync. */
 export const AUTH_CHANGED_EVENT = 'hs:auth-changed';
@@ -32,6 +33,24 @@ export function clearStoredSession(): void {
   localStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(USER_ROLE_KEY);
+  localStorage.removeItem(USER_HMS_ID_KEY);
+}
+
+export function getUserHmsId(): number | null {
+  if (typeof window === 'undefined') return null;
+  const val = localStorage.getItem(USER_HMS_ID_KEY);
+  if (!val) return null;
+  const n = parseInt(val, 10);
+  return isNaN(n) ? null : n;
+}
+
+export function storeUserHmsId(hmsId: number | null | undefined): void {
+  if (typeof window === 'undefined') return;
+  if (hmsId != null) {
+    localStorage.setItem(USER_HMS_ID_KEY, String(hmsId));
+  } else {
+    localStorage.removeItem(USER_HMS_ID_KEY);
+  }
 }
 
 export function getUserRole(): string | null {

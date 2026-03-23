@@ -3,8 +3,10 @@
 import React from 'react';
 import { useMutation, useQuery } from '@apollo/client/react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { InputBox, PopupToast, ReusableConfirmModal, ReusableFormModal } from '@/components';
 import { FiEdit2, FiMapPin, FiPlus, FiSquare, FiTrash2 } from 'react-icons/fi';
+import { getUserRole } from '@/lib/auth-token';
 import { LIST_HMS_QUERY } from '@/project_components/subsites/graphql/operations';
 import {
   CREATE_BED_MUTATION,
@@ -81,6 +83,9 @@ const getMutationResult = (data: unknown): Result | null => {
 };
 
 export default function SubsiteDashboardOrganism() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [selectedSubsiteId, setSelectedSubsiteId] = React.useState<number | null>(null);
   const [selectedCityId, setSelectedCityId] = React.useState<number | null>(null);
   const [selectedBuildingId, setSelectedBuildingId] = React.useState<number | null>(null);
@@ -105,6 +110,8 @@ export default function SubsiteDashboardOrganism() {
   const [floorToEdit, setFloorToEdit] = React.useState<Floor | null>(null);
   const [roomToEdit, setRoomToEdit] = React.useState<Room | null>(null);
   const [bedToEdit, setBedToEdit] = React.useState<Bed | null>(null);
+  const [userRole, setUserRole] = React.useState<string | null>(null);
+  const [hasAppliedQuerySubsite, setHasAppliedQuerySubsite] = React.useState(false);
 
   const [message, setMessage] = React.useState('');
   const [error, setError] = React.useState('');
@@ -163,6 +170,22 @@ export default function SubsiteDashboardOrganism() {
   const [createBed] = useMutation(CREATE_BED_MUTATION);
   const [updateBed] = useMutation(UPDATE_BED_MUTATION);
   const [deleteBed] = useMutation(DELETE_BED_MUTATION);
+
+  const querySubsiteId = React.useMemo(() => {
+    const raw = searchParams.get('subsiteId');
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }, [searchParams]);
+
+  React.useEffect(() => {
+    const role = getUserRole();
+    setUserRole(role);
+    const allowed = role === 'root_admin' || role === 'site_admin' || role === 'site_building_manager';
+    if (!allowed) {
+      router.replace('/dashboard');
+    }
+  }, [router]);
 
   const showError = (value: unknown) => {
     const text = value instanceof Error ? value.message : 'Operation failed';
@@ -708,6 +731,42 @@ export default function SubsiteDashboardOrganism() {
   const beds = allBeds.filter((item) => item.isActive === (bedTab === 'active'));
   const selectedBuilding = allBuildings.find((item) => item.id === selectedBuildingId);
   const isBedSupported = selectedBuilding?.propertyType === 'pg';
+  const selectedSubsite = (hmsData?.listHms || []).find((item) => item.id === selectedSubsiteId);
+  const availableSubsites = hmsData?.listHms || [];
+  const isSingleUserSubsite = availableSubsites.length === 1 && userRole === 'site_admin';
+  const isSubsiteAutoLocked = isSingleUserSubsite || (querySubsiteId && selectedSubsiteId === querySubsiteId);
+  const hideCityAndBuildingActions = isSubsiteAutoLocked || userRole === 'site_admin';
+
+  React.useEffect(() => {
+    if (hasAppliedQuerySubsite) {
+      return;
+    }
+
+    const subsites = hmsData?.listHms || [];
+    const singleSubsite = subsites.length === 1;
+
+    // If only 1 subsite available (site_admin case), auto-select it
+    if (singleSubsite && subsites[0]) {
+      setSelectedSubsiteId(subsites[0].id);
+      resetLevelsBelow('subsite');
+      setHasAppliedQuerySubsite(true);
+      return;
+    }
+
+    // If query param provided (from internal deep link), use it
+    if (!querySubsiteId) {
+      return;
+    }
+
+    const exists = subsites.some((item) => item.id === querySubsiteId);
+    if (!exists) {
+      return;
+    }
+
+    setSelectedSubsiteId(querySubsiteId);
+    resetLevelsBelow('subsite');
+    setHasAppliedQuerySubsite(true);
+  }, [hasAppliedQuerySubsite, hmsData, querySubsiteId]);
 
   React.useEffect(() => {
     if (selectedBuilding && selectedBuilding.propertyType !== 'pg') {
@@ -733,12 +792,13 @@ export default function SubsiteDashboardOrganism() {
               <label className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>Select Subsite</label>
               <select
                 value={selectedSubsiteId || ''}
+                disabled={isSubsiteAutoLocked}
                 onChange={(e) => {
                   setSelectedSubsiteId(e.target.value ? Number(e.target.value) : null);
                   resetLevelsBelow('subsite');
                 }}
                 className="w-full h-12 rounded-xl px-3"
-                style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', opacity: isSubsiteAutoLocked ? 0.7 : 1 }}
               >
                 <option value="">Choose Subsite</option>
                 {(hmsData?.listHms || []).map((item) => (
@@ -747,6 +807,16 @@ export default function SubsiteDashboardOrganism() {
                   </option>
                 ))}
               </select>
+              {selectedSubsite ? (
+                <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Selected Type: {selectedSubsite.hmsType === 1 ? 'Lodge' : 'PG'}
+                </p>
+              ) : null}
+              {isSubsiteAutoLocked ? (
+                <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {isSingleUserSubsite ? 'Your assigned subsite • Selection locked' : 'Subsite locked from deep link'}
+                </p>
+              ) : null}
             </div>
 
             <div>
@@ -768,15 +838,17 @@ export default function SubsiteDashboardOrganism() {
                     </option>
                   ))}
                 </select>
-                <button
-                  type="button"
-                  onClick={() => setIsCityModalOpen(true)}
-                  className="h-12 px-3 rounded-xl inline-flex items-center gap-1"
-                  style={{ background: 'var(--brand-dim)', color: 'var(--brand-light)', border: '1px solid var(--brand-border)' }}
-                  aria-label="Create city"
-                >
-                  <FiPlus /> Add City
-                </button>
+                {!hideCityAndBuildingActions ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsCityModalOpen(true)}
+                    className="h-12 px-3 rounded-xl inline-flex items-center gap-1"
+                    style={{ background: 'var(--brand-dim)', color: 'var(--brand-light)', border: '1px solid var(--brand-border)' }}
+                    aria-label="Create city"
+                  >
+                    <FiPlus /> Add City
+                  </button>
+                ) : null}
               </div>
               <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
                 No city yet? Go to{' '}
@@ -813,19 +885,21 @@ export default function SubsiteDashboardOrganism() {
                   Deselect
                 </button>
               ) : null}
-              <button
-                type="button"
-                disabled={buildingTab !== 'active'}
-                onClick={() => {
-                  setBuildingToEdit(null);
-                  setBuildingForm({ name: '', location: '', propertyType: 'pg' });
-                  setIsBuildingModalOpen(true);
-                }}
-                className="h-10 px-3 rounded-xl inline-flex items-center justify-center gap-2"
-                style={{ background: 'var(--brand-dim)', color: 'var(--brand-light)', border: '1px solid var(--brand-border)', opacity: buildingTab !== 'active' ? 0.5 : 1 }}
-              >
-                <FiPlus /> Add Building
-              </button>
+              {!hideCityAndBuildingActions ? (
+                <button
+                  type="button"
+                  disabled={buildingTab !== 'active'}
+                  onClick={() => {
+                    setBuildingToEdit(null);
+                    setBuildingForm({ name: '', location: '', propertyType: 'pg' });
+                    setIsBuildingModalOpen(true);
+                  }}
+                  className="h-10 px-3 rounded-xl inline-flex items-center justify-center gap-2"
+                  style={{ background: 'var(--brand-dim)', color: 'var(--brand-light)', border: '1px solid var(--brand-border)', opacity: buildingTab !== 'active' ? 0.5 : 1 }}
+                >
+                  <FiPlus /> Add Building
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -853,46 +927,48 @@ export default function SubsiteDashboardOrganism() {
                 <p className="text-xs mt-1 inline-flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
                   <FiMapPin className="w-3 h-3" /> {building.location || 'No location'}
                 </p>
-                <div className="flex flex-wrap gap-2 mt-3">
-                  <button
-                    type="button"
-                    disabled={buildingTab !== 'active'}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpenEditBuilding(building);
-                    }}
-                    className="px-2 py-1 rounded-lg text-xs inline-flex items-center gap-1"
-                    style={{ border: '1px solid var(--border)', color: 'var(--text-primary)' }}
-                  >
-                    <FiEdit2 className="w-3 h-3" /> Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (buildingTab === 'active') {
-                        onDisableBuilding(building.id);
-                      } else {
-                        onEnableBuilding(building.id);
-                      }
-                    }}
-                    className="px-2 py-1 rounded-lg text-xs inline-flex items-center gap-1"
-                    style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
-                  >
-                    {buildingTab === 'active' ? 'Disable' : 'Enable'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      requestDeleteBuilding(building.id);
-                    }}
-                    className="px-2 py-1 rounded-lg text-xs inline-flex items-center gap-1"
-                    style={{ border: '1px solid rgba(239,68,68,0.35)', color: 'var(--danger)' }}
-                  >
-                    <FiTrash2 className="w-3 h-3" /> Delete
-                  </button>
-                </div>
+                {!hideCityAndBuildingActions ? (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <button
+                      type="button"
+                      disabled={buildingTab !== 'active'}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenEditBuilding(building);
+                      }}
+                      className="px-2 py-1 rounded-lg text-xs inline-flex items-center gap-1"
+                      style={{ border: '1px solid var(--border)', color: 'var(--text-primary)', opacity: buildingTab !== 'active' ? 0.5 : 1 }}
+                    >
+                      <FiEdit2 className="w-3 h-3" /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (buildingTab === 'active') {
+                          onDisableBuilding(building.id);
+                        } else {
+                          onEnableBuilding(building.id);
+                        }
+                      }}
+                      className="px-2 py-1 rounded-lg text-xs inline-flex items-center gap-1"
+                      style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                    >
+                      {buildingTab === 'active' ? 'Disable' : 'Enable'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        requestDeleteBuilding(building.id);
+                      }}
+                      className="px-2 py-1 rounded-lg text-xs inline-flex items-center gap-1"
+                      style={{ border: '1px solid rgba(239,68,68,0.35)', color: 'var(--danger)' }}
+                    >
+                      <FiTrash2 className="w-3 h-3" /> Delete
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ))}
             {buildings.length === 0 ? (
@@ -966,7 +1042,7 @@ export default function SubsiteDashboardOrganism() {
                     <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{floor.description || 'No description'}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" disabled={floorTab !== 'active'} onClick={(e) => { e.stopPropagation(); onUpdateFloor(floor); }} className="px-2 py-1 rounded-lg text-xs" style={{ border: '1px solid var(--border)', color: 'var(--text-primary)' }}>Edit</button>
+                    <button type="button" disabled={floorTab !== 'active'} onClick={(e) => { e.stopPropagation(); onUpdateFloor(floor); }} className="px-2 py-1 rounded-lg text-xs" style={{ border: '1px solid var(--border)', color: 'var(--text-primary)', opacity: floorTab !== 'active' ? 0.5 : 1 }}>Edit</button>
                     <button type="button" onClick={(e) => { e.stopPropagation(); if (floorTab === 'active') { onDisableFloor(floor.id); } else { onEnableFloor(floor.id); } }} className="px-2 py-1 rounded-lg text-xs" style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>{floorTab === 'active' ? 'Disable' : 'Enable'}</button>
                     <button type="button" onClick={(e) => { e.stopPropagation(); requestDeleteFloor(floor.id); }} className="px-2 py-1 rounded-lg text-xs" style={{ border: '1px solid rgba(239,68,68,0.35)', color: 'var(--danger)' }}>Delete</button>
                   </div>
@@ -1047,7 +1123,7 @@ export default function SubsiteDashboardOrganism() {
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button type="button" disabled={roomTab !== 'active'} onClick={(e) => { e.stopPropagation(); onUpdateRoom(room); }} className="px-2 py-1 rounded-lg text-xs" style={{ border: '1px solid var(--border)', color: 'var(--text-primary)' }}>Edit</button>
+                      <button type="button" disabled={roomTab !== 'active'} onClick={(e) => { e.stopPropagation(); onUpdateRoom(room); }} className="px-2 py-1 rounded-lg text-xs" style={{ border: '1px solid var(--border)', color: 'var(--text-primary)', opacity: roomTab !== 'active' ? 0.5 : 1 }}>Edit</button>
                       <button type="button" onClick={(e) => { e.stopPropagation(); if (roomTab === 'active') { onDisableRoom(room.id); } else { onEnableRoom(room.id); } }} className="px-2 py-1 rounded-lg text-xs" style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>{roomTab === 'active' ? 'Disable' : 'Enable'}</button>
                       <button type="button" onClick={(e) => { e.stopPropagation(); requestDeleteRoom(room.id); }} className="px-2 py-1 rounded-lg text-xs" style={{ border: '1px solid rgba(239,68,68,0.35)', color: 'var(--danger)' }}>Delete</button>
                     </div>

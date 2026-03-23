@@ -6,7 +6,7 @@ import {
   FiArrowRight,
   FiCalendar,
   FiCheckCircle,
-  FiCreditCard,
+  FiGrid,
   FiHome,
   FiLogIn,
   FiMapPin,
@@ -17,7 +17,7 @@ import {
 } from "react-icons/fi";
 import Link from "next/link";
 
-import { ThemedDatePicker } from "@/components";
+import { ThemedDatePicker, ThemedSelect } from "@/components";
 import AttachmentUploader, { UploadedAttachment } from "@/components/AttachmentUploader";
 import { AUTH_CHANGED_EVENT, getValidAuthToken } from "@/lib/auth-token";
 import {
@@ -26,6 +26,7 @@ import {
 } from "@/project_components/login/graphql/operations";
 import RouteMolecule from "@/project_components/login/molecule/route_molecule";
 import { LIST_CITIES_QUERY } from "@/project_components/propertys/graphql/operations";
+import { LIST_HMS_QUERY } from "@/project_components/subsites/graphql/operations";
 
 import { CREATE_BOOKING_MUTATION, SEARCH_AVAILABILITY_QUERY } from "../graphql/operations";
 import { formatDateDDMMYYYY } from "../utils/date";
@@ -48,6 +49,8 @@ type AvailabilityOption = {
   cityName: string;
   buildingId: number;
   buildingName: string;
+  floorId?: number | null;
+  floorNumber?: number | null;
   location?: string | null;
   propertyType: "pg" | "lodge";
   roomId?: number | null;
@@ -101,8 +104,45 @@ type AvailabilityResponse = {
   searchAvailability: AvailabilityOption[];
 };
 
+type BuildingGroup = {
+  buildingId: number;
+  buildingName: string;
+  hmsDisplayName: string;
+  cityName: string;
+  location?: string | null;
+  propertyType: 'pg' | 'lodge';
+  slots: AvailabilityOption[];
+  minPrice: number;
+};
+
+type FloorMeta = {
+  key: number;
+  label: string;
+  count: number;
+};
+
+type PgRoomGroup = {
+  roomKey: number;
+  roomId?: number | null;
+  roomNumber: string;
+  roomType?: string | null;
+  beds: AvailabilityOption[];
+};
+
 type CitiesResponse = {
   listCities: City[];
+};
+
+type HmsRecord = {
+  id: number;
+  hmsName: string;
+  hmsDisplayName: string;
+  hmsType: number;
+};
+
+type HmsResponse = {
+  subsiteBaseDomain?: string;
+  listHms: HmsRecord[];
 };
 
 function formatDateInput(value: Date): string {
@@ -140,11 +180,16 @@ function makeGuestList(count: number): BookingGuest[] {
 
 export default function PublicBookingOrganism() {
   const today = useMemo(() => formatDateInput(new Date()), []);
+  const currentYear = useMemo(() => new Date().getFullYear(), []);
   const [cityId, setCityId] = useState<number | "">("");
+  const [propertyTypeFilter, setPropertyTypeFilter] = useState<"both" | "pg" | "lodge">("both");
+  const [propertyKeyword, setPropertyKeyword] = useState("");
   const [checkIn, setCheckIn] = useState(today);
   const [checkOut, setCheckOut] = useState(addDays(today, 1));
   const [guestCount, setGuestCount] = useState(1);
   const [selectedOption, setSelectedOption] = useState<AvailabilityOption | null>(null);
+  const [layoutBuilding, setLayoutBuilding] = useState<BuildingGroup | null>(null);
+  const [layoutFloor, setLayoutFloor] = useState<number | null>(null);
   const [guests, setGuests] = useState<BookingGuest[]>(makeGuestList(1));
   const [specialRequest, setSpecialRequest] = useState("");
   const [formError, setFormError] = useState("");
@@ -155,6 +200,8 @@ export default function PublicBookingOrganism() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pendingBookingAfterLogin, setPendingBookingAfterLogin] = useState(false);
   const [loginModalError, setLoginModalError] = useState("");
+  const [isSubsiteAutoLocked, setIsSubsiteAutoLocked] = useState(false);
+  const [subsiteLabel, setSubsiteLabel] = useState("");
 
   // Sync auth state on mount and on any AUTH_CHANGED_EVENT (login / logout from Header or modal)
   useEffect(() => {
@@ -184,6 +231,7 @@ export default function PublicBookingOrganism() {
   const { data: cityData } = useQuery<CitiesResponse>(LIST_CITIES_QUERY, {
     variables: { isActive: true },
   });
+  const { data: hmsData } = useQuery<HmsResponse>(LIST_HMS_QUERY);
   const [loadAvailability, { data: availabilityData, loading: availabilityLoading }] = useLazyQuery<AvailabilityResponse>(
     SEARCH_AVAILABILITY_QUERY,
     { fetchPolicy: "network-only" },
@@ -193,7 +241,138 @@ export default function PublicBookingOrganism() {
   const [verifyOtpMutation] = useMutation(VERIFY_LOGIN_OTP_MUTATION);
 
   const nights = stayLength(checkIn, checkOut);
-  const results = availabilityData?.searchAvailability || [];
+  const results = (availabilityData?.searchAvailability || []).filter((item) => item.available);
+  const groupedBuildings = useMemo<BuildingGroup[]>(() => {
+    const map = new Map<number, BuildingGroup>();
+    for (const item of results) {
+      const existing = map.get(item.buildingId);
+      if (!existing) {
+        map.set(item.buildingId, {
+          buildingId: item.buildingId,
+          buildingName: item.buildingName,
+          hmsDisplayName: item.hmsDisplayName,
+          cityName: item.cityName,
+          location: item.location,
+          propertyType: item.propertyType,
+          slots: [item],
+          minPrice: Number(item.totalAmount || 0),
+        });
+      } else {
+        existing.slots.push(item);
+        existing.minPrice = Math.min(existing.minPrice, Number(item.totalAmount || 0));
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.minPrice - b.minPrice);
+  }, [results]);
+
+  const layoutFloors = useMemo<FloorMeta[]>(() => {
+    if (!layoutBuilding) return [];
+    const floorMap = new Map<number, FloorMeta>();
+    for (const slot of layoutBuilding.slots) {
+      const key = slot.floorId ?? slot.floorNumber ?? 0;
+      const existing = floorMap.get(key);
+      if (!existing) {
+        floorMap.set(key, {
+          key,
+          label: slot.floorNumber !== null && slot.floorNumber !== undefined ? `Floor ${slot.floorNumber}` : "Unassigned",
+          count: 1,
+        });
+      } else {
+        existing.count += 1;
+      }
+    }
+    return Array.from(floorMap.values()).sort((a, b) => a.key - b.key);
+  }, [layoutBuilding]);
+
+  const layoutVisibleSlots = useMemo<AvailabilityOption[]>(() => {
+    if (!layoutBuilding) return [];
+    if (layoutFloor === null) return layoutBuilding.slots;
+    return layoutBuilding.slots.filter((slot) => (slot.floorId ?? slot.floorNumber ?? 0) === layoutFloor);
+  }, [layoutBuilding, layoutFloor]);
+
+  const layoutPgRooms = useMemo<PgRoomGroup[]>(() => {
+    if (!layoutBuilding || layoutBuilding.propertyType !== "pg") {
+      return [];
+    }
+
+    const roomMap = new Map<number, PgRoomGroup>();
+    for (const slot of layoutVisibleSlots) {
+      if (slot.inventoryType !== "bed") {
+        continue;
+      }
+      const roomKey = slot.roomId ?? slot.bookingTargetId;
+      const existing = roomMap.get(roomKey);
+      if (!existing) {
+        roomMap.set(roomKey, {
+          roomKey,
+          roomId: slot.roomId,
+          roomNumber: slot.roomNumber || `Room ${roomKey}`,
+          roomType: slot.roomType,
+          beds: [slot],
+        });
+      } else {
+        existing.beds.push(slot);
+      }
+    }
+
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+    const rooms = Array.from(roomMap.values());
+    for (const room of rooms) {
+      room.beds.sort((a, b) => collator.compare(a.bedNumber || "", b.bedNumber || ""));
+    }
+    rooms.sort((a, b) => collator.compare(a.roomNumber, b.roomNumber));
+    return rooms;
+  }, [layoutBuilding, layoutVisibleSlots]);
+
+  useEffect(() => {
+    if (!layoutBuilding) {
+      setLayoutFloor(null);
+      return;
+    }
+    const firstFloor = layoutFloors[0]?.key ?? null;
+    setLayoutFloor(firstFloor);
+  }, [layoutBuilding]);
+
+  useEffect(() => {
+    if (!hmsData || typeof window === "undefined") {
+      return;
+    }
+
+    const host = window.location.hostname.toLowerCase();
+    const baseDomain = (hmsData.subsiteBaseDomain || "").trim().toLowerCase();
+    if (!baseDomain || host === "localhost" || host === "127.0.0.1") {
+      setIsSubsiteAutoLocked(false);
+      setSubsiteLabel("");
+      return;
+    }
+
+    const suffix = `.${baseDomain}`;
+    if (!host.endsWith(suffix)) {
+      setIsSubsiteAutoLocked(false);
+      setSubsiteLabel("");
+      return;
+    }
+
+    const leftPart = host.slice(0, -suffix.length);
+    const candidateKey = leftPart.split(".")[0]?.trim().toLowerCase();
+    if (!candidateKey || candidateKey === "www" || candidateKey === "backend") {
+      setIsSubsiteAutoLocked(false);
+      setSubsiteLabel("");
+      return;
+    }
+
+    const matchedSubsite = (hmsData.listHms || []).find((item) => item.hmsName?.toLowerCase() === candidateKey);
+    if (!matchedSubsite) {
+      setIsSubsiteAutoLocked(false);
+      setSubsiteLabel("");
+      return;
+    }
+
+    setIsSubsiteAutoLocked(true);
+    setPropertyKeyword(matchedSubsite.hmsName);
+    setPropertyTypeFilter(matchedSubsite.hmsType === 1 ? "lodge" : "pg");
+    setSubsiteLabel(matchedSubsite.hmsDisplayName || matchedSubsite.hmsName);
+  }, [hmsData]);
 
   function handleGuestCountChange(nextCount: number) {
     setGuestCount(nextCount);
@@ -220,6 +399,10 @@ export default function PublicBookingOrganism() {
       setFormError("Stay must be less than or equal to 31 days.");
       return false;
     }
+    if (checkIn < today) {
+      setFormError("Check-in cannot be before today.");
+      return false;
+    }
     setFormError("");
     return true;
   }
@@ -236,6 +419,8 @@ export default function PublicBookingOrganism() {
         checkIn,
         checkOut,
         guestCount,
+        hmsName: propertyKeyword.trim() || null,
+        propertyType: propertyTypeFilter === 'both' ? null : propertyTypeFilter,
       },
     });
   }
@@ -278,7 +463,7 @@ export default function PublicBookingOrganism() {
         checkIn,
         checkOut,
         guestCount,
-        paymentMethod: "cod",
+        paymentMethod: "manual_booking",
         specialRequest: specialRequest.trim() || null,
         guests: guests.map((guest) => ({
           fullName: guest.fullName,
@@ -394,129 +579,203 @@ export default function PublicBookingOrganism() {
     }
   }
 
+  const shellStyle = { background: "var(--bg-base)", color: "var(--text-primary)" };
+  const heroStyle = {
+    borderColor: "var(--border)",
+    background:
+      "radial-gradient(circle at top left, var(--brand-dim), transparent 30%), radial-gradient(circle at top right, var(--action-dim), transparent 28%), linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-elevated) 52%, var(--bg-base) 100%)",
+  };
+  const surfaceCardStyle = {
+    borderColor: "var(--border)",
+    background: "var(--bg-surface)",
+    boxShadow: "0 20px 60px -40px rgba(15, 23, 42, 0.45)",
+  };
+  const elevatedCardStyle = {
+    borderColor: "var(--border)",
+    background: "var(--bg-elevated)",
+  };
+  const glassCardStyle = {
+    borderColor: "var(--border)",
+    background: "var(--bg-glass)",
+    boxShadow: "0 30px 100px -45px rgba(15, 23, 42, 0.35)",
+  };
+  const mutedTextStyle = { color: "var(--text-secondary)" };
+  const subtleTextStyle = { color: "var(--text-muted)" };
+  const brandButtonStyle = { background: "var(--brand)", color: "#ffffff" };
+  const actionButtonStyle = { background: "var(--action)", color: "#ffffff" };
+  const chipStyle = { background: "var(--bg-chip)", color: "var(--text-secondary)" };
+  const successPanelStyle = {
+    borderColor: "rgba(16, 185, 129, 0.28)",
+    background: "rgba(16, 185, 129, 0.12)",
+  };
+  const inputStyle = {
+    borderColor: "var(--border)",
+    background: "var(--bg-input)",
+    color: "var(--text-primary)",
+  };
+
   return (
-    <div className="min-h-screen bg-[#f6f1e8] text-slate-900">
-      <section className="relative overflow-hidden border-b border-black/5 bg-[radial-gradient(circle_at_top_left,_rgba(27,94,73,0.18),_transparent_30%),linear-gradient(135deg,_#f8f5ef_0%,_#e9ddcb_50%,_#f3eee5_100%)]">
-        <div className="absolute -left-16 top-12 h-56 w-56 rounded-full bg-[#1b5e49]/10 blur-3xl" />
-        <div className="absolute right-0 top-0 h-72 w-72 rounded-full bg-[#c16d3c]/10 blur-3xl" />
+    <div className="min-h-screen" style={shellStyle}>
+      <section className="relative overflow-hidden border-b" style={heroStyle}>
+        <div className="absolute -left-16 top-12 h-56 w-56 rounded-full blur-3xl" style={{ background: "var(--brand-dim)" }} />
+        <div className="absolute right-0 top-0 h-72 w-72 rounded-full blur-3xl" style={{ background: "var(--action-dim)" }} />
         <div className="mx-auto grid max-w-7xl gap-10 px-6 py-12 md:px-10 md:py-16 lg:grid-cols-[1.15fr_0.85fr] lg:px-12">
           <div className="space-y-6">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#1b5e49]/15 bg-white/70 px-4 py-2">
+            <div className="inline-flex items-center gap-2 rounded-full border px-4 py-2" style={{ borderColor: "var(--brand-border)", background: "var(--bg-glass)" }}>
               <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-              <span className="text-xs font-semibold uppercase tracking-[0.24em] text-[#1b5e49]">Live inventory · Instant booking</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.24em]" style={{ color: "var(--brand-light)" }}>Live inventory · Manual approval flow</span>
             </div>
             <div className="space-y-4">
-              <h1 className="max-w-3xl text-5xl font-semibold leading-tight tracking-[-0.04em] text-slate-900 md:text-6xl">
-                Find a room or PG bed for your next stay.
+              <h1 className="max-w-3xl text-5xl font-semibold leading-tight tracking-[-0.04em] md:text-6xl">
+                Search by lodge or PG, then pick your exact layout slot.
               </h1>
-              <p className="max-w-2xl text-base leading-7 text-slate-600 md:text-lg">
-                Browse available lodge rooms and shared PG beds across cities. Pick your dates, verify with Aadhaar, and confirm with cash on delivery — all in one place.
+              <p className="max-w-2xl text-base leading-7 md:text-lg" style={mutedTextStyle}>
+                Explore building-wise availability, open a layout model, choose a specific room/bed, and send a manual booking request to the site admin for approval.
               </p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-3xl border border-black/5 bg-white/80 p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)]">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Step 1</p>
-                <p className="mt-3 text-2xl font-semibold text-slate-900">Search stays</p>
-                <p className="mt-2 text-sm leading-6 text-slate-600">Choose your city and travel dates. We'll instantly show all open rooms and PG beds.</p>
+              <div className="rounded-3xl border p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)]" style={surfaceCardStyle}>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Step 1</p>
+                <p className="mt-3 text-2xl font-semibold">Search stays</p>
+                <p className="mt-2 text-sm leading-6" style={mutedTextStyle}>Choose your city and travel dates. We'll instantly show all open rooms and PG beds.</p>
               </div>
-              <div className="rounded-3xl border border-black/5 bg-white/80 p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)]">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Step 2</p>
-                <p className="mt-3 text-2xl font-semibold text-slate-900">Verify identity</p>
-                <p className="mt-2 text-sm leading-6 text-slate-600">Upload an Aadhaar photo for each guest. Required at check-in — takes under a minute.</p>
+              <div className="rounded-3xl border p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)]" style={surfaceCardStyle}>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Step 2</p>
+                <p className="mt-3 text-2xl font-semibold">Verify identity</p>
+                <p className="mt-2 text-sm leading-6" style={mutedTextStyle}>Upload an Aadhaar photo for each guest. Required at check-in — takes under a minute.</p>
               </div>
-              <div className="rounded-3xl border border-black/5 bg-[#17362e] p-5 text-white shadow-[0_24px_80px_-36px_rgba(23,54,46,0.7)]">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-200">Step 3</p>
-                <p className="mt-3 text-2xl font-semibold">Pay on arrival</p>
-                <p className="mt-2 text-sm leading-6 text-emerald-50/80">No advance payment needed. Pay the full amount in cash when you arrive at the property.</p>
+              <div className="rounded-3xl border p-5 text-white shadow-[0_24px_80px_-36px_rgba(23,54,46,0.7)]" style={{ borderColor: "var(--brand-border)", background: "linear-gradient(135deg, var(--brand), var(--action))" }}>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/80">Step 3</p>
+                <p className="mt-3 text-2xl font-semibold">Admin approval</p>
+                <p className="mt-2 text-sm leading-6 text-white/80">Your request goes to site admin. They verify details, confirm payment mode offline, then approve or reject.</p>
               </div>
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-black/5 bg-white/88 p-6 shadow-[0_30px_100px_-45px_rgba(15,23,42,0.35)] backdrop-blur md:p-7">
+          <div className="rounded-[2rem] border p-6 shadow-[0_30px_100px_-45px_rgba(15,23,42,0.35)] backdrop-blur md:p-7" style={glassCardStyle}>
             <div className="mb-6 flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Public search</p>
-                <h2 className="mt-2 text-2xl font-semibold text-slate-900">Book now</h2>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Public search</p>
+                <h2 className="mt-2 text-2xl font-semibold">Book now</h2>
               </div>
-              <div className="rounded-2xl bg-[#f0e7d9] px-3 py-2 text-right">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8e4f2b]">Night span</p>
-                <p className="text-lg font-semibold text-slate-900">{Math.max(nights, 0)} nights</p>
+              <div className="rounded-2xl px-3 py-2 text-right" style={chipStyle}>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--action-light)" }}>Night span</p>
+                <p className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>{Math.max(nights, 0)} nights</p>
               </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="space-y-2 text-sm font-medium text-slate-700">
+              {isSubsiteAutoLocked ? (
+                <div className="space-y-2 text-sm font-medium md:col-span-2" style={{ color: "var(--text-secondary)" }}>
+                  <span>Subsite</span>
+                  <div className="flex h-12 items-center rounded-2xl border px-4 text-sm" style={{ borderColor: "var(--brand-border)", background: "var(--brand-dim)", color: "var(--text-primary)" }}>
+                    {subsiteLabel}
+                  </div>
+                </div>
+              ) : null}
+              <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                 City
-                <select
+                <ThemedSelect
                   value={cityId}
-                  onChange={(event) => setCityId(event.target.value ? Number(event.target.value) : "")}
-                  className="h-12 w-full rounded-2xl border border-black/10 bg-white px-4 outline-none transition focus:border-[#1b5e49]"
-                >
-                  <option value="">Select city</option>
-                  {cityData?.listCities?.map((city) => (
-                    <option key={city.id} value={city.id}>
-                      {city.cityName}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => setCityId(value ? Number(value) : "")}
+                  placeholder="Select city"
+                  options={(cityData?.listCities || []).map((city) => ({
+                    label: city.cityName,
+                    value: city.id,
+                  }))}
+                />
               </label>
-              <label className="space-y-2 text-sm font-medium text-slate-700">
+              <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                Stay type
+                <ThemedSelect
+                  value={propertyTypeFilter}
+                  onChange={(value) => setPropertyTypeFilter(value as 'both' | 'pg' | 'lodge')}
+                  disabled={isSubsiteAutoLocked}
+                  options={[
+                    { label: "Both (PG + Lodge)", value: "both" },
+                    { label: "PG only", value: "pg" },
+                    { label: "Lodge only", value: "lodge" },
+                  ]}
+                />
+                {isSubsiteAutoLocked ? (
+                  <p className="text-xs" style={subtleTextStyle}>Auto-selected from subsite type.</p>
+                ) : null}
+              </label>
+              <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                 Guests
-                <select
+                <ThemedSelect
                   value={guestCount}
-                  onChange={(event) => handleGuestCountChange(Number(event.target.value))}
-                  className="h-12 w-full rounded-2xl border border-black/10 bg-white px-4 outline-none transition focus:border-[#1b5e49]"
-                >
-                  {[1, 2, 3, 4].map((value) => (
-                    <option key={value} value={value}>
-                      {value} {value === 1 ? "guest" : "guests"}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => handleGuestCountChange(Number(value))}
+                  options={[1, 2, 3, 4].map((value) => ({
+                    label: `${value} ${value === 1 ? "guest" : "guests"}`,
+                    value,
+                  }))}
+                />
               </label>
-              <label className="space-y-2 text-sm font-medium text-slate-700">
+              <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                 Check-in
                 <ThemedDatePicker
                   value={checkIn}
+                  minDate={today}
+                  yearStart={currentYear}
+                  yearEnd={currentYear + 2}
                   onChange={(nextValue) => {
-                    setCheckIn(nextValue);
-                    if (stayLength(nextValue, checkOut) <= 0) {
-                      setCheckOut(addDays(nextValue, 1));
+                    const bounded = nextValue < today ? today : nextValue;
+                    setCheckIn(bounded);
+                    if (stayLength(bounded, checkOut) <= 0) {
+                      setCheckOut(addDays(bounded, 1));
+                    }
+                    if (stayLength(bounded, checkOut) > 31) {
+                      setCheckOut(addDays(bounded, 31));
                     }
                   }}
                   placeholder="DD-MM-YYYY"
                   className="w-full"
                 />
               </label>
-              <label className="space-y-2 text-sm font-medium text-slate-700">
+              <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                 Check-out
                 <ThemedDatePicker
                   value={checkOut}
-                  onChange={(nextValue) => setCheckOut(nextValue)}
+                  minDate={addDays(checkIn, 1)}
+                  yearStart={currentYear}
+                  yearEnd={currentYear + 2}
+                  onChange={(nextValue) => {
+                    if (nextValue <= checkIn) {
+                      setCheckOut(addDays(checkIn, 1));
+                      return;
+                    }
+                    if (stayLength(checkIn, nextValue) > 31) {
+                      setCheckOut(addDays(checkIn, 31));
+                      return;
+                    }
+                    setCheckOut(nextValue);
+                  }}
                   placeholder="DD-MM-YYYY"
                   className="w-full"
                 />
               </label>
             </div>
 
-            <p className="mt-3 text-xs text-slate-500">
-              Trip dates: <span className="font-semibold text-slate-700">{formatDateDDMMYYYY(checkIn)}</span> to <span className="font-semibold text-slate-700">{formatDateDDMMYYYY(checkOut)}</span>
+            <p className="mt-3 text-xs" style={subtleTextStyle}>
+              Trip dates: <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{formatDateDDMMYYYY(checkIn)}</span> to <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{formatDateDDMMYYYY(checkOut)}</span>
             </p>
 
             <button
               onClick={handleSearch}
               disabled={availabilityLoading}
-              className="mt-5 inline-flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-[#17362e] px-5 text-sm font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-[#0f2721] disabled:cursor-not-allowed disabled:opacity-70"
+              className="mt-5 inline-flex h-13 w-full items-center justify-center gap-2 rounded-2xl px-5 text-sm font-semibold uppercase tracking-[0.18em] transition disabled:cursor-not-allowed disabled:opacity-70"
+              style={brandButtonStyle}
             >
               {availabilityLoading ? "Searching..." : "Search availability"}
               <FiArrowRight />
             </button>
 
-            <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-slate-600">
-              <span className="inline-flex items-center gap-2 rounded-full bg-[#f0e7d9] px-3 py-1.5"><FiCalendar /> stay under 31 days</span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-[#f0e7d9] px-3 py-1.5"><FiCreditCard /> COD only</span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-[#f0e7d9] px-3 py-1.5"><FiShield /> Aadhaar required</span>
+            <div className="mt-5 flex flex-wrap items-center gap-3 text-sm" style={mutedTextStyle}>
+              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={chipStyle}><FiCalendar /> stay under 31 days</span>
+              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={chipStyle}><FiShield /> manual admin approval</span>
+              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={chipStyle}><FiShield /> Aadhaar required</span>
             </div>
           </div>
         </div>
@@ -524,26 +783,26 @@ export default function PublicBookingOrganism() {
 
       <section className="mx-auto max-w-7xl px-6 py-10 md:px-10 lg:px-12 lg:py-12">
         {formError ? (
-          <div className="mb-6 rounded-3xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+          <div className="mb-6 rounded-3xl border px-5 py-4 text-sm" style={{ borderColor: "rgba(239, 68, 68, 0.28)", background: "rgba(239, 68, 68, 0.12)", color: "var(--danger)" }}>
             {formError}
           </div>
         ) : null}
 
         {confirmation ? (
-          <div className="mb-8 rounded-[2rem] border border-emerald-200 bg-emerald-50 p-6 shadow-[0_20px_60px_-40px_rgba(22,101,52,0.45)]">
+          <div className="mb-8 rounded-[2rem] border p-6 shadow-[0_20px_60px_-40px_rgba(22,101,52,0.45)]" style={successPanelStyle}>
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
-                <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.24em] text-emerald-700">
-                  <FiCheckCircle /> Booking confirmed
+                <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.24em]" style={{ color: "var(--positive)" }}>
+                  <FiCheckCircle /> Booking request submitted
                 </p>
-                <h3 className="mt-3 text-3xl font-semibold text-slate-900">Reference {confirmation.bookingReference}</h3>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-700">
-                  {confirmation.hmsDisplayName} at {confirmation.buildingName}, {confirmation.cityName} is reserved from {formatDateDDMMYYYY(confirmation.checkIn)} to {formatDateDDMMYYYY(confirmation.checkOut)}.
+                <h3 className="mt-3 text-3xl font-semibold">Reference {confirmation.bookingReference}</h3>
+                <p className="mt-2 max-w-2xl text-sm leading-6" style={mutedTextStyle}>
+                  Request sent to site admin for {confirmation.hmsDisplayName} at {confirmation.buildingName}, {confirmation.cityName}. They will contact you and approve or reject after confirmation.
                 </p>
               </div>
-              <div className="rounded-3xl bg-white px-5 py-4 text-right shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Amount due on arrival</p>
-                <p className="mt-2 text-3xl font-semibold text-slate-900">{formatCurrency(confirmation.totalAmount)}</p>
+              <div className="rounded-3xl px-5 py-4 text-right shadow-sm" style={surfaceCardStyle}>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Estimated amount</p>
+                <p className="mt-2 text-3xl font-semibold">{formatCurrency(confirmation.totalAmount)}</p>
               </div>
             </div>
           </div>
@@ -553,67 +812,79 @@ export default function PublicBookingOrganism() {
           <div className="space-y-5">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Available inventory</p>
-                <h2 className="mt-2 text-3xl font-semibold tracking-[-0.03em] text-slate-900">Results for your trip</h2>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Available inventory</p>
+                <h2 className="mt-2 text-3xl font-semibold tracking-[-0.03em]">Results for your trip</h2>
               </div>
-              <p className="text-sm text-slate-500">{results.length} option{results.length === 1 ? "" : "s"}</p>
+              <p className="text-sm" style={subtleTextStyle}>{groupedBuildings.length} building{groupedBuildings.length === 1 ? "" : "s"}</p>
             </div>
 
-            {results.length === 0 ? (
-              <div className="rounded-[2rem] border border-dashed border-black/10 bg-white/70 p-8 text-center text-slate-500">
-                Search by city, dates, and guest count to see available lodge rooms and PG beds.
+            {groupedBuildings.length === 0 ? (
+              <div className="rounded-[2rem] border border-dashed p-8 text-center" style={{ borderColor: "var(--border-strong)", background: "var(--bg-surface)", color: "var(--text-secondary)" }}>
+                Search by city and dates to see building-wise availability. Then open layout to select a specific room/bed.
               </div>
             ) : (
               <div className="grid gap-5">
-                {results.map((option) => {
-                  const isSelected = selectedOption?.bookingTargetId === option.bookingTargetId && selectedOption?.inventoryType === option.inventoryType;
+                {groupedBuildings.map((group) => {
+                  const selectedCount = group.slots.filter(
+                    (slot) =>
+                      slot.bookingTargetId === selectedOption?.bookingTargetId &&
+                      slot.inventoryType === selectedOption?.inventoryType,
+                  ).length;
                   return (
                     <article
-                      key={`${option.inventoryType}-${option.bookingTargetId}`}
-                      className={`overflow-hidden rounded-[2rem] border transition ${isSelected ? "border-[#1b5e49] shadow-[0_24px_80px_-40px_rgba(27,94,73,0.55)]" : "border-black/5 shadow-[0_20px_60px_-45px_rgba(15,23,42,0.45)]"}`}
+                      key={`building-${group.buildingId}`}
+                      className="overflow-hidden rounded-[2rem] border transition"
+                      style={selectedCount > 0 ? { borderColor: "var(--brand)", boxShadow: "0 24px 80px -40px rgba(6, 182, 212, 0.55)" } : { borderColor: "var(--border)", boxShadow: "0 20px 60px -45px rgba(15, 23, 42, 0.45)" }}
                     >
                       <div className="grid gap-0 md:grid-cols-[0.42fr_0.58fr]">
-                        <div className="min-h-[220px] bg-[linear-gradient(135deg,_rgba(23,54,46,0.88),_rgba(193,109,60,0.62))] p-6 text-white">
+                        <div className="min-h-[220px] p-6 text-white" style={{ background: "linear-gradient(135deg, var(--brand), var(--action))" }}>
                           <div className="flex h-full flex-col justify-between">
                             <div className="space-y-3">
                               <span className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-white/90">
-                                {option.inventoryType === "room" ? "Lodge room" : "PG bed"}
+                                {group.propertyType === "lodge" ? "Lodge layout" : "PG layout"}
                               </span>
                               <div>
-                                <h3 className="text-3xl font-semibold tracking-[-0.03em]">{option.buildingName}</h3>
-                                <p className="mt-2 text-sm text-white/75">{option.hmsDisplayName}</p>
+                                <h3 className="text-3xl font-semibold tracking-[-0.03em]">{group.buildingName}</h3>
+                                <p className="mt-2 text-sm text-white/75">{group.hmsDisplayName}</p>
                               </div>
                             </div>
                             <div className="rounded-3xl bg-black/15 p-4 backdrop-blur-sm">
-                              <p className="text-xs uppercase tracking-[0.22em] text-white/70">Arrival price</p>
-                              <p className="mt-2 text-3xl font-semibold">{formatCurrency(option.totalAmount)}</p>
-                              <p className="mt-1 text-sm text-white/75">{formatCurrency(option.pricePerDay)} per day</p>
+                              <p className="text-xs uppercase tracking-[0.22em] text-white/70">From price</p>
+                              <p className="mt-2 text-3xl font-semibold">{formatCurrency(group.minPrice)}</p>
+                              <p className="mt-1 text-sm text-white/75">{group.slots.length} available slot{group.slots.length === 1 ? '' : 's'}</p>
                             </div>
                           </div>
                         </div>
 
-                        <div className="bg-white p-6">
+                        <div className="p-6" style={{ background: "var(--bg-surface)", color: "var(--text-primary)" }}>
                           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                             <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Stay summary</p>
-                              <p className="mt-2 text-2xl font-semibold text-slate-900">
-                                {option.inventoryType === "room" ? `Room ${option.roomNumber}` : `Bed ${option.bedNumber}`}
+                              <p className="text-xs font-semibold uppercase tracking-[0.22em]" style={subtleTextStyle}>Building summary</p>
+                              <p className="mt-2 text-2xl font-semibold">
+                                {group.cityName}
                               </p>
-                              <p className="mt-1 text-sm text-slate-500">{option.roomType} · {option.propertyType.toUpperCase()}</p>
+                              <p className="mt-1 text-sm" style={subtleTextStyle}>{group.propertyType.toUpperCase()} · Pick exact slot from layout</p>
                             </div>
                             <button
-                              onClick={() => setSelectedOption(option)}
-                              className={`rounded-2xl px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] transition ${isSelected ? "bg-[#17362e] text-white" : "bg-[#f0e7d9] text-slate-900 hover:bg-[#e6d8c5]"}`}
+                              onClick={() => {
+                                setLayoutBuilding(group);
+                                const sortedFloors = Array.from(new Set(group.slots.map((slot) => slot.floorId ?? slot.floorNumber ?? 0))).sort((a, b) => a - b);
+                                setLayoutFloor(sortedFloors[0] ?? null);
+                              }}
+                              className="rounded-2xl px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] transition"
+                              style={selectedCount > 0 ? brandButtonStyle : { background: "var(--bg-chip)", color: "var(--text-primary)" }}
                             >
-                              {isSelected ? "Selected" : "Select"}
+                              <span className="inline-flex items-center gap-2"><FiGrid />
+                              {selectedCount > 0 ? "Layout selected" : "Open layout"}
+                              </span>
                             </button>
                           </div>
 
-                          <div className="mt-5 grid gap-3 text-sm text-slate-600 md:grid-cols-2">
-                            <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-50 px-4 py-3"><FiMapPin /> {option.location || option.cityName}</div>
-                            <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-50 px-4 py-3"><FiUsers /> {option.inventoryType === "bed" ? "1 guest" : `${guestCount} guest search`}</div>
-                            <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-50 px-4 py-3"><FiHome /> {option.cityName}</div>
-                            <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-50 px-4 py-3"><FiMoon /> {Math.max(nights, 1)} night stay</div>
+                          <div className="mt-5 grid gap-3 text-sm md:grid-cols-2" style={mutedTextStyle}>
+                            <div className="inline-flex items-center gap-2 rounded-2xl px-4 py-3" style={elevatedCardStyle}><FiMapPin /> {group.location || group.cityName}</div>
+                            <div className="inline-flex items-center gap-2 rounded-2xl px-4 py-3" style={elevatedCardStyle}><FiUsers /> {group.propertyType === 'pg' ? '1 guest per bed' : `${guestCount} guest search`}</div>
+                            <div className="inline-flex items-center gap-2 rounded-2xl px-4 py-3" style={elevatedCardStyle}><FiHome /> {group.hmsDisplayName}</div>
+                            <div className="inline-flex items-center gap-2 rounded-2xl px-4 py-3" style={elevatedCardStyle}><FiMoon /> {Math.max(nights, 1)} night stay</div>
                           </div>
                         </div>
                       </div>
@@ -625,23 +896,24 @@ export default function PublicBookingOrganism() {
           </div>
 
           <aside className="space-y-5">
-            <div className="rounded-[2rem] border border-black/5 bg-white p-6 shadow-[0_22px_70px_-50px_rgba(15,23,42,0.5)]">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Checkout panel</p>
-              <h2 className="mt-2 text-3xl font-semibold tracking-[-0.03em] text-slate-900">Complete booking</h2>
+            <div className="rounded-[2rem] border p-6 shadow-[0_22px_70px_-50px_rgba(15,23,42,0.5)]" style={surfaceCardStyle}>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Checkout panel</p>
+              <h2 className="mt-2 text-3xl font-semibold tracking-[-0.03em]">Complete booking</h2>
 
               {!isAuthenticated ? (
-                <div className="mt-5 rounded-2xl border border-[#1b5e49]/20 bg-[#f0faf6] p-4">
+                <div className="mt-5 rounded-2xl border p-4" style={{ borderColor: "var(--brand-border)", background: "var(--brand-dim)" }}>
                   <div className="flex items-start gap-3">
-                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#17362e]">
+                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl" style={brandButtonStyle}>
                       <FiLogIn className="text-sm text-white" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-slate-800">Sign in to complete your booking</p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">Browse and select a property first — sign in only when you're ready to confirm.</p>
+                      <p className="text-sm font-semibold">Sign in to complete your booking</p>
+                      <p className="mt-1 text-xs leading-5" style={mutedTextStyle}>Browse and select a property first — sign in only when you're ready to confirm.</p>
                       <button
                         type="button"
                         onClick={() => setShowLoginModal(true)}
-                        className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#17362e] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-[#0f2721]"
+                        className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition"
+                        style={brandButtonStyle}
                       >
                         <FiLogIn className="text-xs" />
                         Sign in
@@ -650,44 +922,46 @@ export default function PublicBookingOrganism() {
                   </div>
                 </div>
               ) : (
-                <div className="mt-5 flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm">
-                  <FiCheckCircle className="shrink-0 text-emerald-600" />
-                  <span className="font-medium text-emerald-800">You're signed in — ready to book.</span>
+                <div className="mt-5 flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm" style={successPanelStyle}>
+                  <FiCheckCircle className="shrink-0" style={{ color: "var(--positive)" }} />
+                  <span className="font-medium" style={{ color: "var(--positive)" }}>You're signed in — ready to book.</span>
                 </div>
               )}
 
               {selectedOption ? (
                 <div className="mt-5 space-y-4">
-                  <div className="rounded-3xl bg-[#17362e] p-5 text-white">
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200">Selected inventory</p>
+                  <div className="rounded-3xl p-5 text-white" style={{ background: "linear-gradient(135deg, var(--brand), var(--action))" }}>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/75">Selected inventory</p>
                     <p className="mt-2 text-2xl font-semibold">{selectedOption.buildingName}</p>
-                    <p className="mt-1 text-sm text-emerald-50/80">{selectedOption.inventoryType === "room" ? `Room ${selectedOption.roomNumber}` : `Bed ${selectedOption.bedNumber} · Room ${selectedOption.roomNumber}`}</p>
+                    <p className="mt-1 text-sm text-white/80">{selectedOption.inventoryType === "room" ? `Room ${selectedOption.roomNumber}` : `Bed ${selectedOption.bedNumber} · Room ${selectedOption.roomNumber}`}</p>
                     <p className="mt-4 text-3xl font-semibold">{formatCurrency(selectedOption.totalAmount)}</p>
-                    <p className="mt-1 text-sm text-emerald-50/75">Cash on delivery at arrival</p>
+                    <p className="mt-1 text-sm text-white/75">Manual booking request · Admin approval required</p>
                   </div>
 
                   <div className="space-y-4">
                     {guests.map((guest, index) => (
-                      <div key={index} className="rounded-3xl border border-black/5 bg-[#faf7f1] p-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Guest {index + 1}</p>
+                      <div key={index} className="rounded-3xl border p-4" style={elevatedCardStyle}>
+                        <p className="text-xs font-semibold uppercase tracking-[0.22em]" style={subtleTextStyle}>Guest {index + 1}</p>
                         <div className="mt-3 grid gap-3">
-                          <label className="space-y-2 text-sm font-medium text-slate-700">
+                          <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                             Full name
                             <input
                               type="text"
                               value={guest.fullName}
                               onChange={(event) => updateGuest(index, "fullName", event.target.value)}
-                              className="h-11 w-full rounded-2xl border border-black/10 bg-white px-4 outline-none transition focus:border-[#1b5e49]"
+                              className="h-11 w-full rounded-2xl border px-4 outline-none transition"
+                              style={inputStyle}
                               placeholder="Guest full name"
                             />
                           </label>
-                          <label className="space-y-2 text-sm font-medium text-slate-700">
+                          <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                             Mobile number
                             <input
                               type="tel"
                               value={guest.mobileNumber}
                               onChange={(event) => updateGuest(index, "mobileNumber", event.target.value)}
-                              className="h-11 w-full rounded-2xl border border-black/10 bg-white px-4 outline-none transition focus:border-[#1b5e49]"
+                              className="h-11 w-full rounded-2xl border px-4 outline-none transition"
+                              style={inputStyle}
                               placeholder="Optional contact number"
                             />
                           </label>
@@ -707,65 +981,69 @@ export default function PublicBookingOrganism() {
                     ))}
                   </div>
 
-                  <label className="space-y-2 text-sm font-medium text-slate-700">
+                  <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                     Special request
                     <textarea
                       value={specialRequest}
                       onChange={(event) => setSpecialRequest(event.target.value)}
                       rows={4}
-                      className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 outline-none transition focus:border-[#1b5e49]"
-                      placeholder="Arrival note, luggage request, or any preference"
+                      className="w-full rounded-2xl border px-4 py-3 outline-none transition"
+                      style={inputStyle}
+                      placeholder="Share contact preference, timing, payment confirmation note, or any preference"
                     />
                   </label>
 
                   <button
                     onClick={handleBooking}
                     disabled={bookingLoading}
-                    className="inline-flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-[#c16d3c] px-5 text-sm font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-[#ab5b2d] disabled:cursor-not-allowed disabled:opacity-70"
+                    className="inline-flex h-13 w-full items-center justify-center gap-2 rounded-2xl px-5 text-sm font-semibold uppercase tracking-[0.18em] transition disabled:cursor-not-allowed disabled:opacity-70"
+                    style={actionButtonStyle}
                   >
-                    {bookingLoading ? "Confirming..." : "Confirm COD booking"}
+                    {bookingLoading ? "Sending request..." : "Send manual booking request"}
                     <FiArrowRight />
                   </button>
                 </div>
               ) : (
-                <div className="mt-5 rounded-3xl border border-dashed border-black/10 bg-[#faf7f1] p-6 text-sm leading-6 text-slate-600">
-                  Choose a result on the left to open the guest form and Aadhaar upload steps.
+                <div className="mt-5 rounded-3xl border border-dashed p-6 text-sm leading-6" style={{ borderColor: "var(--border-strong)", background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
+                  Open any building layout, pick an available room/bed, then complete guest details and send your request.
                 </div>
               )}
             </div>
 
-            <div className="rounded-[2rem] border border-black/5 bg-white p-6 shadow-[0_22px_70px_-50px_rgba(15,23,42,0.5)]">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Why book with us?</p>
-              <div className="mt-4 space-y-4 text-sm leading-6 text-slate-600">
+            <div className="rounded-[2rem] border p-6 shadow-[0_22px_70px_-50px_rgba(15,23,42,0.5)]" style={surfaceCardStyle}>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Why book with us?</p>
+              <div className="mt-4 space-y-4 text-sm leading-6" style={mutedTextStyle}>
                 <div className="flex gap-3">
-                  <FiUser className="mt-0.5 shrink-0 text-[#1b5e49]" />
+                  <FiUser className="mt-0.5 shrink-0" style={{ color: "var(--brand)" }} />
                   <span>Browse freely without signing in. Log in only when you're ready to confirm a stay.</span>
                 </div>
                 <div className="flex gap-3">
-                  <FiShield className="mt-0.5 shrink-0 text-[#1b5e49]" />
-                  <span>Your room is secured the moment you book — no one else can take it.</span>
+                  <FiShield className="mt-0.5 shrink-0" style={{ color: "var(--brand)" }} />
+                  <span>Requests are approved by site admin in first-approved order for the same room/bed slot.</span>
                 </div>
                 <div className="flex gap-3">
-                  <FiCalendar className="mt-0.5 shrink-0 text-[#1b5e49]" />
+                  <FiCalendar className="mt-0.5 shrink-0" style={{ color: "var(--brand)" }} />
                   <span>View all your past and upcoming bookings anytime in your personal dashboard.</span>
                 </div>
                 <div className="flex gap-3">
-                  <FiCheckCircle className="mt-0.5 shrink-0 text-[#1b5e49]" />
-                  <span>No advance payment — pay the full amount in cash when you arrive.</span>
+                  <FiCheckCircle className="mt-0.5 shrink-0" style={{ color: "var(--brand)" }} />
+                  <span>Approved, rejected, and cancelled bookings are visible in your booking timeline.</span>
                 </div>
               </div>
               {!isAuthenticated ? (
                 <button
                   type="button"
                   onClick={() => setShowLoginModal(true)}
-                  className="mt-5 w-full rounded-2xl border border-[#1b5e49]/20 bg-[#f0faf6] py-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#1b5e49] transition hover:bg-[#e2f5ec]"
+                  className="mt-5 w-full rounded-2xl border py-3 text-xs font-semibold uppercase tracking-[0.18em] transition"
+                  style={{ borderColor: "var(--brand-border)", background: "var(--brand-dim)", color: "var(--brand)" }}
                 >
                   Sign in or create account
                 </button>
               ) : (
                 <Link
                   href="/my-bookings"
-                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700 no-underline transition hover:bg-emerald-100"
+                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border py-3 text-xs font-semibold uppercase tracking-[0.18em] no-underline transition"
+                  style={{ borderColor: "rgba(16, 185, 129, 0.28)", background: "rgba(16, 185, 129, 0.12)", color: "var(--positive)" }}
                 >
                   View my bookings <FiArrowRight />
                 </Link>
@@ -775,6 +1053,130 @@ export default function PublicBookingOrganism() {
         </div>
       </section>
 
+      {layoutBuilding ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setLayoutBuilding(null);
+            }
+          }}
+        >
+          <div className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] p-6 shadow-2xl" style={surfaceCardStyle}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Building layout</p>
+                <h3 className="mt-1 text-2xl font-semibold">{layoutBuilding.buildingName}</h3>
+                <p className="mt-1 text-sm" style={subtleTextStyle}>{layoutBuilding.hmsDisplayName} · {layoutBuilding.cityName}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLayoutBuilding(null)}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border transition"
+                style={{ borderColor: "var(--border)", color: "var(--text-muted)", background: "var(--bg-elevated)" }}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-4 flex-1 overflow-y-auto pr-1">
+              <div className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: "var(--brand-border)", background: "var(--brand-dim)", color: "var(--text-secondary)" }}>
+                Layout shows only available and active {layoutBuilding.propertyType === 'lodge' ? 'rooms' : 'beds'}.
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                {layoutFloors.map((floor) => {
+                  return (
+                    <button
+                      key={`floor-${floor.key}`}
+                      type="button"
+                      onClick={() => setLayoutFloor(floor.key)}
+                      className="rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition"
+                      style={layoutFloor === floor.key ? brandButtonStyle : { background: "var(--bg-elevated)", color: "var(--text-secondary)" }}
+                    >
+                      {floor.label} ({floor.count})
+                    </button>
+                  );
+                })}
+              </div>
+
+              {layoutBuilding.propertyType === "pg" ? (
+                <div className="mt-5 space-y-3">
+                  {layoutPgRooms.map((room) => (
+                    <div key={`room-${room.roomKey}`} className="rounded-2xl border p-3" style={elevatedCardStyle}>
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={subtleTextStyle}>Room</p>
+                          <p className="text-base font-semibold">{room.roomNumber}</p>
+                        </div>
+                        <span className="rounded-lg px-2.5 py-1 text-xs font-medium" style={{ background: "var(--bg-surface)", color: "var(--text-secondary)" }}>
+                          {room.beds.length} bed{room.beds.length === 1 ? "" : "s"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 md:grid-cols-5 lg:grid-cols-6">
+                        {room.beds.map((slot) => {
+                          const isSelected =
+                            selectedOption?.bookingTargetId === slot.bookingTargetId &&
+                            selectedOption?.inventoryType === slot.inventoryType;
+                          return (
+                            <button
+                              key={`${slot.inventoryType}-${slot.bookingTargetId}`}
+                              type="button"
+                              onClick={() => {
+                                setSelectedOption(slot);
+                                setLayoutBuilding(null);
+                              }}
+                              className="rounded-lg border px-2.5 py-2 text-left transition"
+                              style={isSelected ? { borderColor: "var(--brand)", background: "var(--brand-dim)" } : { borderColor: "var(--border)", background: "var(--bg-surface)" }}
+                            >
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={subtleTextStyle}>Bed</p>
+                              <p className="mt-0.5 text-xs font-semibold">{slot.bedNumber}</p>
+                              <p className="mt-1 text-[11px] font-semibold" style={{ color: "var(--brand)" }}>{formatCurrency(slot.totalAmount)}</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+                  {layoutVisibleSlots.map((slot) => {
+                    const isSelected =
+                      selectedOption?.bookingTargetId === slot.bookingTargetId &&
+                      selectedOption?.inventoryType === slot.inventoryType;
+                    return (
+                      <button
+                        key={`${slot.inventoryType}-${slot.bookingTargetId}`}
+                        type="button"
+                        onClick={() => {
+                          setSelectedOption(slot);
+                          setLayoutBuilding(null);
+                        }}
+                        className="rounded-2xl border px-3 py-3 text-left transition"
+                        style={isSelected ? { borderColor: "var(--brand)", background: "var(--brand-dim)" } : { borderColor: "var(--border)", background: "var(--bg-surface)" }}
+                      >
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={subtleTextStyle}>Room</p>
+                        <p className="mt-1 text-lg font-semibold">{slot.roomNumber}</p>
+                        <p className="mt-1 text-xs" style={subtleTextStyle}>{slot.roomType || 'Lodge room'}</p>
+                        <p className="mt-2 text-sm font-semibold" style={{ color: "var(--brand)" }}>{formatCurrency(slot.totalAmount)}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {layoutVisibleSlots.length === 0 ? (
+                <div className="mt-4 rounded-xl border border-dashed px-4 py-5 text-center text-sm" style={{ borderColor: "var(--border-strong)", background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
+                  No available slots on this floor for selected dates.
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {showLoginModal ? (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center"
@@ -783,18 +1185,19 @@ export default function PublicBookingOrganism() {
         >
           <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}} @keyframes slideUp{from{opacity:0;transform:translateY(24px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}`}</style>
           <div
-            className="w-full max-w-md rounded-[2rem] bg-white p-6 shadow-2xl"
-            style={{ animation: 'slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)' }}
+            className="w-full max-w-md rounded-[2rem] p-6 shadow-2xl"
+            style={{ ...surfaceCardStyle, animation: 'slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)' }}
           >
             <div className="mb-5 flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-semibold text-slate-900">Sign in</h2>
-                <p className="mt-0.5 text-sm text-slate-500">Choose how you want to continue</p>
+                <h2 className="text-xl font-semibold">Sign in</h2>
+                <p className="mt-0.5 text-sm" style={subtleTextStyle}>Choose how you want to continue</p>
               </div>
               <button
                 type="button"
                 onClick={closeLoginModal}
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-black/10 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                className="flex h-9 w-9 items-center justify-center rounded-xl border transition"
+                style={{ borderColor: "var(--border)", color: "var(--text-muted)", background: "var(--bg-elevated)" }}
                 aria-label="Close"
               >
                 ✕

@@ -10,6 +10,10 @@ type Props = {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  minDate?: string;
+  maxDate?: string;
+  yearStart?: number;
+  yearEnd?: number;
 };
 
 const WEEK_DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -40,8 +44,14 @@ export default function ThemedDatePicker({
   placeholder = "DD-MM-YYYY",
   disabled = false,
   className = "",
+  minDate,
+  maxDate,
+  yearStart,
+  yearEnd,
 }: Props) {
   const selectedDate = useMemo(() => parseDate(value), [value]);
+  const minDateValue = useMemo(() => parseDate(minDate), [minDate]);
+  const maxDateValue = useMemo(() => parseDate(maxDate), [maxDate]);
   const initialDate = selectedDate || new Date();
   const monthOptions = useMemo(
     () => Array.from({ length: 12 }, (_, m) => new Date(2020, m, 1).toLocaleString(undefined, { month: "long" })),
@@ -49,8 +59,10 @@ export default function ThemedDatePicker({
   );
   const yearOptions = useMemo(() => {
     const currentYear = new Date().getFullYear();
-    return Array.from({ length: 121 }, (_, i) => currentYear - 100 + i);
-  }, []);
+    const start = yearStart ?? minDateValue?.getFullYear() ?? currentYear - 10;
+    const end = yearEnd ?? maxDateValue?.getFullYear() ?? currentYear + 10;
+    return Array.from({ length: Math.max(end - start + 1, 1) }, (_, i) => start + i);
+  }, [maxDateValue, minDateValue, yearEnd, yearStart]);
 
   const [open, setOpen] = useState(false);
   const [viewYear, setViewYear] = useState(initialDate.getFullYear());
@@ -110,6 +122,16 @@ export default function ThemedDatePicker({
 
   const displayValue = selectedDate ? formatDateDDMMYYYY(value) : "";
 
+  const isOutOfRange = (date: Date) => {
+    if (minDateValue && date < minDateValue) {
+      return true;
+    }
+    if (maxDateValue && date > maxDateValue) {
+      return true;
+    }
+    return false;
+  };
+
   const moveMonth = (delta: number) => {
     const next = new Date(viewYear, viewMonth + delta, 1);
     setMonthMotionClass(delta > 0 ? "calendar-grid-next" : "calendar-grid-prev");
@@ -129,6 +151,9 @@ export default function ThemedDatePicker({
 
   const selectDate = (day: number, offset: -1 | 0 | 1) => {
     const date = new Date(viewYear, viewMonth + offset, day);
+    if (isOutOfRange(date)) {
+      return;
+    }
     const nextValue = toDateString(date.getFullYear(), date.getMonth(), date.getDate());
     onChange(nextValue);
     setInputValue(formatDateDDMMYYYY(nextValue));
@@ -144,11 +169,23 @@ export default function ThemedDatePicker({
       return;
     }
 
+    const parsedDate = parseDate(parsed);
+    if (parsedDate && isOutOfRange(parsedDate)) {
+      if (minDateValue && parsedDate < minDateValue) {
+        setInputError(`Date must be on or after ${formatDateDDMMYYYY(minDate)}`);
+        return;
+      }
+      if (maxDateValue && parsedDate > maxDateValue) {
+        setInputError(`Date must be on or before ${formatDateDDMMYYYY(maxDate)}`);
+        return;
+      }
+    }
+
     setInputError("");
     onChange(parsed);
     setInputValue(parsed ? formatDateDDMMYYYY(parsed) : "");
+    setOpen(false);
 
-    const parsedDate = parseDate(parsed);
     if (parsedDate) {
       setViewYear(parsedDate.getFullYear());
       setViewMonth(parsedDate.getMonth());
@@ -157,6 +194,9 @@ export default function ThemedDatePicker({
 
   const setToday = () => {
     const today = new Date();
+    if (isOutOfRange(today)) {
+      return;
+    }
     const nextValue = toDateString(today.getFullYear(), today.getMonth(), today.getDate());
     onChange(nextValue);
     setInputValue(formatDateDDMMYYYY(nextValue));
@@ -224,18 +264,18 @@ export default function ThemedDatePicker({
 
       {open && !disabled ? (
         <div
-          className="absolute z-[80] mt-2 w-full rounded-xl border p-3 shadow-2xl calendar-popover"
+          className="absolute z-[80] mt-2 w-full min-w-[280px] rounded-xl border p-3 shadow-2xl calendar-popover sm:min-w-[320px]"
           style={{
             background: "var(--bg-surface)",
             borderColor: "var(--border)",
             boxShadow: "0 16px 36px rgba(0,0,0,0.35)",
           }}
         >
-          <div className="grid grid-cols-[auto_1fr_1fr_auto] items-center gap-2 mb-3 calendar-controls-row">
+          <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-[auto_1fr_1fr_auto] sm:items-center calendar-controls-row">
             <button
               type="button"
               onClick={() => moveMonth(-1)}
-              className="w-8 h-8 rounded-md flex items-center justify-center"
+              className="h-9 w-full rounded-md flex items-center justify-center sm:h-8 sm:w-8"
               style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}
             >
               <FiChevronLeft className="w-4 h-4" />
@@ -244,7 +284,7 @@ export default function ThemedDatePicker({
             <select
               value={viewMonth}
               onChange={(e) => handleMonthSelect(Number(e.target.value))}
-              className="h-8 rounded-md px-2 text-xs outline-none calendar-select"
+              className="h-9 rounded-md px-2 text-xs outline-none calendar-select sm:h-8"
               style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
             >
               {monthOptions.map((month, index) => (
@@ -257,7 +297,7 @@ export default function ThemedDatePicker({
             <select
               value={viewYear}
               onChange={(e) => handleYearSelect(Number(e.target.value))}
-              className="h-8 rounded-md px-2 text-xs outline-none calendar-select"
+              className="h-9 rounded-md px-2 text-xs outline-none calendar-select sm:h-8"
               style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
             >
               {yearOptions.map((year) => (
@@ -270,7 +310,7 @@ export default function ThemedDatePicker({
             <button
               type="button"
               onClick={() => moveMonth(1)}
-              className="w-8 h-8 rounded-md flex items-center justify-center"
+              className="h-9 w-full rounded-md flex items-center justify-center sm:h-8 sm:w-8"
               style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}
             >
               <FiChevronRight className="w-4 h-4" />
@@ -290,20 +330,27 @@ export default function ThemedDatePicker({
               const date = new Date(viewYear, viewMonth + cell.monthOffset, cell.day);
               const currentValue = toDateString(date.getFullYear(), date.getMonth(), date.getDate());
               const isSelected = value === currentValue;
+              const isDisabled = isOutOfRange(date);
 
               return (
                 <button
                   key={`${cell.monthOffset}-${cell.day}-${index}`}
                   type="button"
                   onClick={() => selectDate(cell.day, cell.monthOffset)}
+                  disabled={isDisabled}
                   className={`h-8 rounded-md text-xs calendar-day-btn ${isSelected ? "calendar-day-selected" : ""}`.trim()}
                   style={{
                     color:
+                      isDisabled
+                        ? "var(--text-muted)"
+                        :
                       cell.monthOffset === 0
                         ? "var(--text-primary)"
                         : "var(--text-muted)",
                     background: isSelected ? "var(--brand-dim)" : "transparent",
                     border: isSelected ? "1px solid var(--brand-border)" : "1px solid transparent",
+                    opacity: isDisabled ? 0.35 : 1,
+                    cursor: isDisabled ? "not-allowed" : "pointer",
                   }}
                 >
                   {cell.day}
