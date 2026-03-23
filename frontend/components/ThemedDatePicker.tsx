@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type FocusEvent, useEffect, useMemo, useRef, useState } from "react";
 import { FiCalendar, FiChevronLeft, FiChevronRight, FiX } from "react-icons/fi";
 import { formatDateDDMMYYYY, parseFlexibleDateToISO } from "@/lib/date-format";
 
@@ -161,7 +161,12 @@ export default function ThemedDatePicker({
     setOpen(false);
   };
 
-  const handleTypedInputBlur = () => {
+  const handleTypedInputBlur = (event: FocusEvent<HTMLInputElement>) => {
+    const nextFocused = event.relatedTarget as Node | null;
+    if (nextFocused && rootRef.current?.contains(nextFocused)) {
+      return;
+    }
+
     const parsed = parseFlexibleDateToISO(inputValue);
 
     if (parsed === null) {

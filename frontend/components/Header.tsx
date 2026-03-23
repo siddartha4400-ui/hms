@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@apollo/client/react';
-import { FiLayers } from 'react-icons/fi';
+import { FiBookOpen, FiGrid, FiHome, FiLayers, FiMap } from 'react-icons/fi';
 import Link from 'next/link';
 import ThemeToggle from './ThemeToggle';
 import { GET_USER_PROFILE_QUERY } from '@/project_components/common-routes/graphql/operations';
@@ -30,10 +30,10 @@ interface HeaderProfileData {
   };
 }
 
-type NavLink = { label: string; href: string };
+type NavLink = { label: string; href: string; icon: React.ReactNode };
 
 function buildNavLinks(role: string | null, authed: boolean): NavLink[] {
-  const home: NavLink = { label: 'Home', href: '/' };
+  const home: NavLink = { label: 'Home', href: '/', icon: <FiHome className="h-3.5 w-3.5" /> };
   if (!authed) {
     return [home];
   }
@@ -41,23 +41,19 @@ function buildNavLinks(role: string | null, authed: boolean): NavLink[] {
     case 'root_admin':
       return [
         home,
-        { label: 'My Bookings', href: '/my-bookings' },
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Subsite Dashboard', href: '/subsite-dashboard' },
-        { label: 'Cities', href: '/cities' },
-        { label: 'Bookings', href: '/bookings' },
+        { label: 'My Bookings', href: '/my-bookings', icon: <FiBookOpen className="h-3.5 w-3.5" /> },
+        { label: 'Dashboard', href: '/dashboard', icon: <FiGrid className="h-3.5 w-3.5" /> },
+        { label: 'Cities', href: '/cities', icon: <FiMap className="h-3.5 w-3.5" /> },
       ];
     case 'site_admin':
     case 'site_building_manager':
       return [
         home,
-        { label: 'My Bookings', href: '/my-bookings' },
-        { label: 'Dashboard', href: '/dashboard' },
-        { label: 'Subsite Dashboard', href: '/subsite-dashboard' },
-        { label: 'Bookings', href: '/bookings' },
+        { label: 'My Bookings', href: '/my-bookings', icon: <FiBookOpen className="h-3.5 w-3.5" /> },
+        { label: 'Dashboard', href: '/dashboard', icon: <FiGrid className="h-3.5 w-3.5" /> },
       ];
     default: // normal_user or unrecognised
-      return [home, { label: 'My Bookings', href: '/my-bookings' }];
+      return [home, { label: 'My Bookings', href: '/my-bookings', icon: <FiBookOpen className="h-3.5 w-3.5" /> }];
   }
 }
 
@@ -178,14 +174,16 @@ export default function Header() {
             <Link
               key={link.label}
               href={link.href}
-              className="text-[11px] uppercase tracking-widest no-underline transition-all duration-200 px-2.5 py-1.5 rounded-md"
+              className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-widest no-underline transition-all duration-200 px-2.5 py-1.5 rounded-md"
               style={{
                 color: isActiveNav(link.href) ? 'var(--brand)' : 'var(--text-muted)',
                 background: isActiveNav(link.href) ? 'var(--brand-dim)' : 'transparent',
                 border: isActiveNav(link.href) ? '1px solid var(--brand-border)' : '1px solid transparent',
+                textDecoration: 'none',
               }}
             >
-              {link.label}
+              <span className="shrink-0">{link.icon}</span>
+              <span>{link.label}</span>
             </Link>
           ))}
         </div>

@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { ReactNode } from "react";
 import { ReusableAccordion } from "@/components";
+import { normalizeBackendAssetUrl } from "@/lib/backend-url";
 
 import { formatDateDDMMYYYY } from "../utils/date";
 
@@ -23,6 +25,13 @@ export type BookingListItem = {
   bookedByName?: string | null;
   bookedByEmail?: string | null;
   primaryGuestMobile?: string | null;
+  guests?: Array<{
+    id: number;
+    fullName: string;
+    mobileNumber?: string | null;
+    aadhaarAttachmentId?: number | null;
+    aadhaarAttachmentUrl?: string | null;
+  }>;
   createdAtUtc?: string | null;
 };
 
@@ -58,6 +67,8 @@ function formatCurrency(value?: number): string {
 }
 
 export default function BookingListView({ bookings, emptyMessage, actionSlot }: Props) {
+  const [aadhaarPreview, setAadhaarPreview] = useState<{ name: string; url: string } | null>(null);
+
   const accordionItems = bookings.map((booking) => ({
     id: booking.id,
     title: (
@@ -98,6 +109,37 @@ export default function BookingListView({ bookings, emptyMessage, actionSlot }: 
           </div>
         ) : null}
 
+        {(booking.guests || []).length > 0 ? (
+          <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Guest Details</p>
+            <div className="mt-2 grid gap-1.5 text-xs text-slate-600 md:grid-cols-2">
+              {(booking.guests || []).map((guest, guestIndex) => (
+                <div key={guest.id || guestIndex} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                  <p>Name: <span className="font-medium text-slate-900">{guest.fullName || "-"}</span></p>
+                  <p>Mobile: <span className="font-medium text-slate-900">{guest.mobileNumber || "-"}</span></p>
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <p>Aadhaar: <span className="font-medium text-slate-900">{guest.aadhaarAttachmentId ? "Uploaded" : "-"}</span></p>
+                    {guest.aadhaarAttachmentUrl ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAadhaarPreview({
+                            name: guest.fullName || "Guest",
+                            url: normalizeBackendAssetUrl(guest.aadhaarAttachmentUrl || ""),
+                          })
+                        }
+                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-700"
+                      >
+                        View Aadhaar
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-3 flex flex-col gap-2.5 border-t border-black/5 pt-3 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-wrap items-center gap-3">
             <p className="text-xs text-slate-600">{booking.cityName} • {booking.paymentMethod.replaceAll("_", " ").toUpperCase()}</p>
@@ -109,5 +151,51 @@ export default function BookingListView({ bookings, emptyMessage, actionSlot }: 
     ),
   }));
 
-  return <ReusableAccordion items={accordionItems} emptyMessage={emptyMessage} />;
+  const isPdf = Boolean(aadhaarPreview?.url && aadhaarPreview.url.toLowerCase().includes(".pdf"));
+
+  return (
+    <>
+      <ReusableAccordion items={accordionItems} emptyMessage={emptyMessage} />
+
+      {aadhaarPreview ? (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/55 p-4"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setAadhaarPreview(null);
+            }
+          }}
+        >
+          <div className="w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+              <p className="text-sm font-semibold text-slate-100">Aadhaar preview - {aadhaarPreview.name}</p>
+              <button
+                type="button"
+                onClick={() => setAadhaarPreview(null)}
+                className="rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="max-h-[75vh] overflow-auto bg-slate-900 p-3">
+              {isPdf ? (
+                <iframe
+                  title="Aadhaar PDF preview"
+                  src={aadhaarPreview.url}
+                  className="h-[70vh] w-full rounded-lg border border-slate-700 bg-white"
+                />
+              ) : (
+                <img
+                  src={aadhaarPreview.url}
+                  alt={`Aadhaar for ${aadhaarPreview.name}`}
+                  className="mx-auto max-h-[70vh] w-auto max-w-full rounded-lg border border-slate-700 bg-black/20 object-contain"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
 }

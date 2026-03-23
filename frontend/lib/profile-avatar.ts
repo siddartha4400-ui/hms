@@ -1,3 +1,5 @@
+import { normalizeBackendAssetUrl } from '@/lib/backend-url';
+
 export const PROFILE_AVATAR_STORAGE_KEY = 'hs-profile-avatar';
 export const PROFILE_IDENTITY_STORAGE_KEY = 'hs-profile-identity';
 export const PROFILE_AVATAR_UPDATED_EVENT = 'hs:profile-avatar-updated';
@@ -10,32 +12,8 @@ export interface StoredProfileIdentity {
   email?: string;
 }
 
-function getBackendBaseUrl(): string {
-  const explicitBase = process.env.NEXT_PUBLIC_BACKEND_URL?.trim();
-  if (explicitBase) {
-    return explicitBase.replace(/\/$/, '');
-  }
-
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (apiUrl) {
-    return apiUrl.replace(/\/graphql\/?$/, '').replace(/\/$/, '');
-  }
-
-  return 'http://localhost:8000';
-}
-
 export function normalizeAvatarUrl(url?: string): string {
-  const rawUrl = (url || '').trim();
-  if (!rawUrl) {
-    return '';
-  }
-
-  if (/^https?:\/\//i.test(rawUrl)) {
-    return rawUrl;
-  }
-
-  const base = getBackendBaseUrl();
-  return `${base}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+  return normalizeBackendAssetUrl(url);
 }
 
 export function getInitials(firstName?: string, lastName?: string, email?: string): string {

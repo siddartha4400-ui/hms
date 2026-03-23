@@ -139,18 +139,29 @@ class CompleteBookingMutation(graphene.Mutation):
 	class Arguments:
 		booking_reference = graphene.String(required=True)
 		hms_id = graphene.Int()
+		checkout_mode = graphene.String()
+		extra_amount = graphene.Float()
 
 	success = graphene.Boolean()
 	message = graphene.String()
 	booking = graphene.Field(BookingType)
 
 	@staticmethod
-	def mutate(root, info, booking_reference, hms_id=None):
+	def mutate(root, info, booking_reference, hms_id=None, checkout_mode=None, extra_amount=None):
 		actor = info.context.user if info.context.user and info.context.user.is_authenticated else None
 		company_id = getattr(info.context, "company_id", None) or hms_id or getattr(info.context, "profile_hms_id", None)
 		try:
-			booking = BookingService.complete_booking(booking_reference, actor=actor, company_id=company_id)
-			return CompleteBookingMutation(success=True, message="Guest relieved and booking completed", booking=BookingType(**booking))
+			booking = BookingService.complete_booking(
+				booking_reference,
+				actor=actor,
+				company_id=company_id,
+				checkout_mode=checkout_mode,
+				extra_amount=extra_amount,
+			)
+			message = "Guest relieved and booking completed"
+			if (checkout_mode or "").strip().lower() == "overstay":
+				message = "Overstay checkout completed"
+			return CompleteBookingMutation(success=True, message=message, booking=BookingType(**booking))
 		except ApiException as exc:
 			return CompleteBookingMutation(success=False, message=str(exc), booking=None)
 

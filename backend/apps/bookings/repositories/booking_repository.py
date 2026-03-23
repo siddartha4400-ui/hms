@@ -23,6 +23,12 @@ class BookingRepository:
 		return queryset.order_by("-updated_at", "-id")
 
 	@staticmethod
+	def list_recent_guests_for_user(*, user_id: int, limit: int = 20):
+		queryset = BookingGuest.objects.select_related("booking", "aadhaar_attachment")
+		queryset = queryset.filter(booking__booked_by_id=user_id)
+		return queryset.order_by("-booking__updated_at", "-id")[:limit]
+
+	@staticmethod
 	def list_available_lodge_rooms(*, city_id=None, hms_name=None):
 		queryset = Room.objects.select_related("building", "floor", "building__company", "building__city")
 		queryset = queryset.filter(

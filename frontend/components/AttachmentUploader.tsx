@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useId, useMemo, useState } from "react";
+import { normalizeBackendAssetUrl } from "@/lib/backend-url";
 
 export type UploadedAttachment = {
   id: number;
@@ -114,7 +115,11 @@ export default function AttachmentUploader({
       throw new Error(payload?.error || "Attachment upload failed.");
     }
 
-    return payload.attachments?.[0] as UploadedAttachment;
+    const uploaded = payload.attachments?.[0] as UploadedAttachment;
+    return {
+      ...uploaded,
+      url: normalizeBackendAssetUrl(uploaded?.url),
+    };
   }
 
   async function handleChange(event: ChangeEvent<HTMLInputElement>) {
@@ -244,7 +249,7 @@ export default function AttachmentUploader({
                   <div className="text-xs md:text-right" style={{ color: "var(--text-secondary)" }}>
                     <p>{formatBytes(attachment.file_size)}</p>
                     <a
-                      href={attachment.url}
+                      href={normalizeBackendAssetUrl(attachment.url)}
                       target="_blank"
                       rel="noreferrer"
                       className="mt-1 inline-block underline underline-offset-2"

@@ -142,8 +142,8 @@ export const CANCEL_BOOKING_MUTATION = gql`
 `;
 
 export const COMPLETE_BOOKING_MUTATION = gql`
-  mutation CompleteBooking($bookingReference: String!, $hmsId: Int) {
-    completeBooking(bookingReference: $bookingReference, hmsId: $hmsId) {
+  mutation CompleteBooking($bookingReference: String!, $hmsId: Int, $checkoutMode: String, $extraAmount: Float) {
+    completeBooking(bookingReference: $bookingReference, hmsId: $hmsId, checkoutMode: $checkoutMode, extraAmount: $extraAmount) {
       success
       message
       booking {
@@ -189,7 +189,27 @@ export const LIST_BOOKINGS_QUERY = gql`
       bookedByName
       bookedByEmail
       primaryGuestMobile
+      guests {
+        id
+        fullName
+        mobileNumber
+        aadhaarAttachmentId
+        aadhaarAttachmentUrl
+      }
       createdAtUtc
+    }
+  }
+`;
+
+export const MY_RECENT_GUESTS_QUERY = gql`
+  query MyRecentGuests($limit: Int) {
+    myRecentGuests(limit: $limit) {
+      id
+      fullName
+      mobileNumber
+      aadhaarAttachmentId
+      aadhaarAttachmentUrl
+      lastBookingReference
     }
   }
 `;

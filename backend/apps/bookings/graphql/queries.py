@@ -37,6 +37,7 @@ class BookingGuestType(graphene.ObjectType):
 	mobile_number = graphene.String()
 	aadhaar_attachment_id = graphene.Int()
 	aadhaar_attachment_url = graphene.String()
+	last_booking_reference = graphene.String()
 
 
 class BookingType(graphene.ObjectType):
@@ -85,6 +86,7 @@ class Query(graphene.ObjectType):
 		mine=graphene.Boolean(),
 		hms_id=graphene.Int(),  # explicit override from frontend
 	)
+	my_recent_guests = graphene.List(BookingGuestType, limit=graphene.Int())
 
 	def resolve_search_availability(self, info, **kwargs):
 		subsite_key = getattr(info.context, "subsite_key", None)
@@ -104,3 +106,8 @@ class Query(graphene.ObjectType):
 			hms_id = getattr(info.context, "profile_hms_id", None)
 		items = BookingService.list_bookings(view=view, mine=mine, hms_id=hms_id, actor=actor)
 		return [BookingType(**item) for item in items]
+
+	def resolve_my_recent_guests(self, info, limit=8):
+		actor = info.context.user if info.context.user and info.context.user.is_authenticated else None
+		items = BookingService.list_recent_guests(actor=actor, limit=limit)
+		return [BookingGuestType(**item) for item in items]

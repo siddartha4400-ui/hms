@@ -1,7 +1,7 @@
 "use client";
 
 import { useLazyQuery, useMutation, useQuery } from "@apollo/client/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FiArrowRight,
   FiCalendar,
@@ -12,6 +12,7 @@ import {
   FiMapPin,
   FiMoon,
   FiShield,
+  FiTrash2,
   FiUser,
   FiUsers,
 } from "react-icons/fi";
@@ -28,7 +29,11 @@ import RouteMolecule from "@/project_components/login/molecule/route_molecule";
 import { LIST_CITIES_QUERY } from "@/project_components/propertys/graphql/operations";
 import { LIST_HMS_QUERY } from "@/project_components/subsites/graphql/operations";
 
-import { CREATE_BOOKING_MUTATION, SEARCH_AVAILABILITY_QUERY } from "../graphql/operations";
+import {
+  CREATE_BOOKING_MUTATION,
+  MY_RECENT_GUESTS_QUERY,
+  SEARCH_AVAILABILITY_QUERY,
+} from "../graphql/operations";
 import { formatDateDDMMYYYY } from "../utils/date";
 
 type City = {
@@ -71,6 +76,24 @@ type BookingGuest = {
   aadhaarAttachmentId: number | null;
 };
 
+type RecentGuest = {
+  id: number;
+  fullName: string;
+  mobileNumber?: string | null;
+  aadhaarAttachmentId?: number | null;
+  aadhaarAttachmentUrl?: string | null;
+  lastBookingReference?: string | null;
+};
+
+type FlowStep = "search" | "inventory" | "guests";
+
+type NewGuestDraft = {
+  fullName: string;
+  mobileNumber: string;
+  aadhaarAttachmentId: number | null;
+  aadhaarAttachmentUrl: string;
+};
+
 type BookingResponse = {
   createBooking: {
     success: boolean;
@@ -102,6 +125,10 @@ type LoginResponse = {
 
 type AvailabilityResponse = {
   searchAvailability: AvailabilityOption[];
+};
+
+type RecentGuestsResponse = {
+  myRecentGuests: RecentGuest[];
 };
 
 type BuildingGroup = {
@@ -178,7 +205,28 @@ function makeGuestList(count: number): BookingGuest[] {
   }));
 }
 
-export default function PublicBookingOrganism() {
+const EMPTY_RECENT_GUESTS: RecentGuest[] = [];
+
+function areGuestListsEqual(left: BookingGuest[], right: BookingGuest[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((guest, index) => {
+    const other = right[index];
+    return (
+      guest.fullName === other?.fullName &&
+      guest.mobileNumber === other?.mobileNumber &&
+      guest.aadhaarAttachmentId === other?.aadhaarAttachmentId
+    );
+  });
+}
+
+type PublicBookingOrganismProps = {
+  mode?: "public" | "admin";
+};
+
+export default function PublicBookingOrganism({ mode = "public" }: PublicBookingOrganismProps) {
   const today = useMemo(() => formatDateInput(new Date()), []);
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const [cityId, setCityId] = useState<number | "">("");
@@ -202,6 +250,19 @@ export default function PublicBookingOrganism() {
   const [loginModalError, setLoginModalError] = useState("");
   const [isSubsiteAutoLocked, setIsSubsiteAutoLocked] = useState(false);
   const [subsiteLabel, setSubsiteLabel] = useState("");
+  const [selectedGuestIds, setSelectedGuestIds] = useState<number[]>([]);
+  const [hiddenGuestIds, setHiddenGuestIds] = useState<number[]>([]);
+  const [flowStep, setFlowStep] = useState<FlowStep>("search");
+  const [customGuestProfiles, setCustomGuestProfiles] = useState<RecentGuest[]>([]);
+  const [showAddGuestModal, setShowAddGuestModal] = useState(false);
+  const [newGuestDraft, setNewGuestDraft] = useState<NewGuestDraft>({
+    fullName: "",
+    mobileNumber: "",
+    aadhaarAttachmentId: null,
+    aadhaarAttachmentUrl: "",
+  });
+  const inventoryRef = useRef<HTMLDivElement | null>(null);
+  const guestsRef = useRef<HTMLDivElement | null>(null);
 
   // Sync auth state on mount and on any AUTH_CHANGED_EVENT (login / logout from Header or modal)
   useEffect(() => {
@@ -239,8 +300,28 @@ export default function PublicBookingOrganism() {
   const [createBooking, { loading: bookingLoading }] = useMutation<BookingResponse>(CREATE_BOOKING_MUTATION);
   const [loginMutation, { loading: loginLoading }] = useMutation<LoginResponse>(LOGIN_MUTATION);
   const [verifyOtpMutation] = useMutation(VERIFY_LOGIN_OTP_MUTATION);
+  const { data: recentGuestsData } = useQuery<RecentGuestsResponse>(MY_RECENT_GUESTS_QUERY, {
+    variables: { limit: 8 },
+    skip: !isAuthenticated,
+    fetchPolicy: "network-only",
+  });
 
   const nights = stayLength(checkIn, checkOut);
+  const recentGuests = recentGuestsData?.myRecentGuests ?? EMPTY_RECENT_GUESTS;
+  const guestPool = useMemo<RecentGuest[]>(() => {
+    const source = [...customGuestProfiles, ...recentGuests];
+    const unique: RecentGuest[] = [];
+    const seen = new Set<string>();
+    for (const guest of source) {
+      const key = `${(guest.fullName || "").trim().toLowerCase()}::${(guest.mobileNumber || "").trim()}::${guest.aadhaarAttachmentId || 0}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      unique.push(guest);
+    }
+    return unique.filter((guest) => !hiddenGuestIds.includes(guest.id));
+  }, [customGuestProfiles, hiddenGuestIds, recentGuests]);
   const results = (availabilityData?.searchAvailability || []).filter((item) => item.available);
   const groupedBuildings = useMemo<BuildingGroup[]>(() => {
     const map = new Map<number, BuildingGroup>();
@@ -334,6 +415,35 @@ export default function PublicBookingOrganism() {
   }, [layoutBuilding]);
 
   useEffect(() => {
+    if (flowStep === "inventory") {
+      inventoryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    if (flowStep === "guests") {
+      guestsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [flowStep]);
+
+  useEffect(() => {
+    const selectedProfiles = selectedGuestIds
+      .map((id) => guestPool.find((item) => item.id === id))
+      .filter(Boolean) as RecentGuest[];
+
+    const nextGuests = makeGuestList(guestCount).map((item, index) => {
+      const profile = selectedProfiles[index];
+      if (!profile) {
+        return item;
+      }
+      return {
+        fullName: profile.fullName || "",
+        mobileNumber: profile.mobileNumber || "",
+        aadhaarAttachmentId: profile.aadhaarAttachmentId || null,
+      };
+    });
+    setGuests((current) => (areGuestListsEqual(current, nextGuests) ? current : nextGuests));
+  }, [guestCount, guestPool, selectedGuestIds]);
+
+  useEffect(() => {
     if (!hmsData || typeof window === "undefined") {
       return;
     }
@@ -376,10 +486,7 @@ export default function PublicBookingOrganism() {
 
   function handleGuestCountChange(nextCount: number) {
     setGuestCount(nextCount);
-    setGuests((current) => {
-      const next = makeGuestList(nextCount);
-      return next.map((guest, index) => current[index] || guest);
-    });
+    setSelectedGuestIds((current) => current.slice(0, nextCount));
   }
 
   function validateSearch(): boolean {
@@ -413,7 +520,7 @@ export default function PublicBookingOrganism() {
     }
     setConfirmation(null);
     setSelectedOption(null);
-    await loadAvailability({
+    const response = await loadAvailability({
       variables: {
         cityId: Number(cityId),
         checkIn,
@@ -423,20 +530,97 @@ export default function PublicBookingOrganism() {
         propertyType: propertyTypeFilter === 'both' ? null : propertyTypeFilter,
       },
     });
-  }
-
-  function updateGuest(index: number, field: keyof BookingGuest, value: string | number | null) {
-    setGuests((current) =>
-      current.map((guest, guestIndex) => (guestIndex === index ? { ...guest, [field]: value } : guest)),
-    );
-  }
-
-  function handleUpload(index: number, attachments: UploadedAttachment[]) {
-    const attachment = attachments[0];
-    if (!attachment) {
+    const availableItems = (response.data?.searchAvailability || []).filter((item) => item.available);
+    if (availableItems.length > 0) {
+      setFlowStep("inventory");
       return;
     }
-    updateGuest(index, "aadhaarAttachmentId", attachment.id);
+    setFormError("No available rooms or beds for selected filters. Try another date or city.");
+  }
+
+  function openAddGuestModal() {
+    setNewGuestDraft({
+      fullName: "",
+      mobileNumber: "",
+      aadhaarAttachmentId: null,
+      aadhaarAttachmentUrl: "",
+    });
+    setShowAddGuestModal(true);
+  }
+
+  function handleGuestDraftUpload(attachments: UploadedAttachment[]) {
+    const item = attachments[0];
+    if (!item) {
+      return;
+    }
+    setNewGuestDraft((current) => ({
+      ...current,
+      aadhaarAttachmentId: item.id,
+      aadhaarAttachmentUrl: item.url,
+    }));
+  }
+
+  function closeAddGuestModal() {
+    setShowAddGuestModal(false);
+  }
+
+  function toggleGuestSelection(guestId: number) {
+    setFormError("");
+    setSelectedGuestIds((current) => {
+      if (current.includes(guestId)) {
+        return current.filter((id) => id !== guestId);
+      }
+      if (current.length >= guestCount) {
+        setFormError(`You can select only ${guestCount} guest${guestCount === 1 ? "" : "s"}.`);
+        return current;
+      }
+      return [...current, guestId];
+    });
+  }
+
+  function removeReusableGuest(guestId: number) {
+    setHiddenGuestIds((current) => (current.includes(guestId) ? current : [...current, guestId]));
+    setCustomGuestProfiles((current) => current.filter((guest) => guest.id !== guestId));
+    setSelectedGuestIds((current) => current.filter((id) => id !== guestId));
+  }
+
+  function continueToGuestStep() {
+    if (!selectedOption) {
+      setFormError("Select a room or bed first.");
+      return;
+    }
+    setFormError("");
+    setFlowStep("guests");
+  }
+
+  function saveNewGuestProfile() {
+    if (!newGuestDraft.fullName.trim()) {
+      setFormError("Guest full name is required.");
+      return;
+    }
+    if (!isAdminMode && !newGuestDraft.aadhaarAttachmentId) {
+      setFormError("Upload Aadhaar proof before saving guest.");
+      return;
+    }
+
+    const newGuest: RecentGuest = {
+      id: Date.now(),
+      fullName: newGuestDraft.fullName.trim(),
+      mobileNumber: newGuestDraft.mobileNumber.trim(),
+      aadhaarAttachmentId: newGuestDraft.aadhaarAttachmentId,
+      aadhaarAttachmentUrl: newGuestDraft.aadhaarAttachmentUrl,
+      lastBookingReference: "NEW",
+    };
+
+    setCustomGuestProfiles((current) => [newGuest, ...current]);
+    setSelectedGuestIds((current) => {
+      if (current.length >= guestCount) {
+        return current;
+      }
+      return [...current, newGuest.id];
+    });
+    closeAddGuestModal();
+    setFormError("");
   }
 
   function validateGuestInputs(): boolean {
@@ -445,7 +629,7 @@ export default function PublicBookingOrganism() {
         setFormError(`Guest ${index + 1} full name is required.`);
         return false;
       }
-      if (!guest.aadhaarAttachmentId) {
+      if (!isAdminMode && !guest.aadhaarAttachmentId) {
         setFormError(`Upload Aadhaar proof for guest ${index + 1}.`);
         return false;
       }
@@ -480,6 +664,8 @@ export default function PublicBookingOrganism() {
 
     setConfirmation(response.data.createBooking.booking);
     setSelectedOption(null);
+    setSelectedGuestIds([]);
+    setFlowStep("inventory");
     await handleSearch();
   }
 
@@ -579,6 +765,7 @@ export default function PublicBookingOrganism() {
     }
   }
 
+  const isAdminMode = mode === "admin";
   const shellStyle = { background: "var(--bg-base)", color: "var(--text-primary)" };
   const heroStyle = {
     borderColor: "var(--border)",
@@ -616,48 +803,52 @@ export default function PublicBookingOrganism() {
 
   return (
     <div className="min-h-screen" style={shellStyle}>
-      <section className="relative overflow-hidden border-b" style={heroStyle}>
+      <section className={flowStep === "search" ? "relative overflow-hidden border-b" : "hidden"} style={heroStyle}>
         <div className="absolute -left-16 top-12 h-56 w-56 rounded-full blur-3xl" style={{ background: "var(--brand-dim)" }} />
         <div className="absolute right-0 top-0 h-72 w-72 rounded-full blur-3xl" style={{ background: "var(--action-dim)" }} />
-        <div className="mx-auto grid max-w-7xl gap-10 px-6 py-12 md:px-10 md:py-16 lg:grid-cols-[1.15fr_0.85fr] lg:px-12">
-          <div className="space-y-6">
-            <div className="inline-flex items-center gap-2 rounded-full border px-4 py-2" style={{ borderColor: "var(--brand-border)", background: "var(--bg-glass)" }}>
-              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-              <span className="text-xs font-semibold uppercase tracking-[0.24em]" style={{ color: "var(--brand-light)" }}>Live inventory · Manual approval flow</span>
-            </div>
-            <div className="space-y-4">
-              <h1 className="max-w-3xl text-5xl font-semibold leading-tight tracking-[-0.04em] md:text-6xl">
-                Search by lodge or PG, then pick your exact layout slot.
-              </h1>
-              <p className="max-w-2xl text-base leading-7 md:text-lg" style={mutedTextStyle}>
-                Explore building-wise availability, open a layout model, choose a specific room/bed, and send a manual booking request to the site admin for approval.
-              </p>
-            </div>
+        <div className={`mx-auto grid max-w-7xl gap-10 px-6 py-12 md:px-10 md:py-16 lg:px-12 ${isAdminMode ? "lg:grid-cols-1" : "lg:grid-cols-[1.15fr_0.85fr]"}`}>
+          {!isAdminMode ? (
+            <div className="space-y-6">
+              <div className="inline-flex items-center gap-2 rounded-full border px-4 py-2" style={{ borderColor: "var(--brand-border)", background: "var(--bg-glass)" }}>
+                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                <span className="text-xs font-semibold uppercase tracking-[0.24em]" style={{ color: "var(--brand-light)" }}>Live inventory · Manual approval flow</span>
+              </div>
+              <div className="space-y-4">
+                <h1 className="max-w-3xl text-5xl font-semibold leading-tight tracking-[-0.04em] md:text-6xl">
+                  Search by lodge or PG, then pick your exact layout slot.
+                </h1>
+                <p className="max-w-2xl text-base leading-7 md:text-lg" style={mutedTextStyle}>
+                  Explore building-wise availability, open a layout model, choose a specific room/bed, and send a manual booking request to the site admin for approval.
+                </p>
+              </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-3xl border p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)]" style={surfaceCardStyle}>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Step 1</p>
-                <p className="mt-3 text-2xl font-semibold">Search stays</p>
-                <p className="mt-2 text-sm leading-6" style={mutedTextStyle}>Choose your city and travel dates. We'll instantly show all open rooms and PG beds.</p>
-              </div>
-              <div className="rounded-3xl border p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)]" style={surfaceCardStyle}>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Step 2</p>
-                <p className="mt-3 text-2xl font-semibold">Verify identity</p>
-                <p className="mt-2 text-sm leading-6" style={mutedTextStyle}>Upload an Aadhaar photo for each guest. Required at check-in — takes under a minute.</p>
-              </div>
-              <div className="rounded-3xl border p-5 text-white shadow-[0_24px_80px_-36px_rgba(23,54,46,0.7)]" style={{ borderColor: "var(--brand-border)", background: "linear-gradient(135deg, var(--brand), var(--action))" }}>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/80">Step 3</p>
-                <p className="mt-3 text-2xl font-semibold">Admin approval</p>
-                <p className="mt-2 text-sm leading-6 text-white/80">Your request goes to site admin. They verify details, confirm payment mode offline, then approve or reject.</p>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-3xl border p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)]" style={surfaceCardStyle}>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Step 1</p>
+                  <p className="mt-3 text-2xl font-semibold">Search stays</p>
+                  <p className="mt-2 text-sm leading-6" style={mutedTextStyle}>Choose your city and travel dates. We'll instantly show all open rooms and PG beds.</p>
+                </div>
+                <div className="rounded-3xl border p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)]" style={surfaceCardStyle}>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Step 2</p>
+                  <p className="mt-3 text-2xl font-semibold">Verify identity</p>
+                  <p className="mt-2 text-sm leading-6" style={mutedTextStyle}>Upload an Aadhaar photo for each guest. Required at check-in — takes under a minute.</p>
+                </div>
+                <div className="rounded-3xl border p-5 text-white shadow-[0_24px_80px_-36px_rgba(23,54,46,0.7)]" style={{ borderColor: "var(--brand-border)", background: "linear-gradient(135deg, var(--brand), var(--action))" }}>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/80">Step 3</p>
+                  <p className="mt-3 text-2xl font-semibold">Admin approval</p>
+                  <p className="mt-2 text-sm leading-6 text-white/80">Your request goes to site admin. They verify details, confirm payment mode offline, then approve or reject.</p>
+                </div>
               </div>
             </div>
-          </div>
+          ) : null}
 
           <div className="rounded-[2rem] border p-6 shadow-[0_30px_100px_-45px_rgba(15,23,42,0.35)] backdrop-blur md:p-7" style={glassCardStyle}>
             <div className="mb-6 flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Public search</p>
-                <h2 className="mt-2 text-2xl font-semibold">Book now</h2>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>
+                  {isAdminMode ? "Walk-in booking" : "Public search"}
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold">{isAdminMode ? "Create booking" : "Book now"}</h2>
               </div>
               <div className="rounded-2xl px-3 py-2 text-right" style={chipStyle}>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--action-light)" }}>Night span</p>
@@ -782,6 +973,37 @@ export default function PublicBookingOrganism() {
       </section>
 
       <section className="mx-auto max-w-7xl px-6 py-10 md:px-10 lg:px-12 lg:py-12">
+        <div className="mb-6 grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border px-4 py-3" style={flowStep === "search" ? { borderColor: "var(--brand-border)", background: "var(--brand-dim)" } : surfaceCardStyle}>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={subtleTextStyle}>Step 1</p>
+            <p className="mt-1 text-sm font-semibold">Search stay</p>
+          </div>
+          <div className="rounded-2xl border px-4 py-3" style={flowStep === "inventory" ? { borderColor: "var(--brand-border)", background: "var(--brand-dim)" } : surfaceCardStyle}>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={subtleTextStyle}>Step 2</p>
+            <p className="mt-1 text-sm font-semibold">Choose room or bed</p>
+          </div>
+          <div className="rounded-2xl border px-4 py-3" style={flowStep === "guests" ? { borderColor: "var(--brand-border)", background: "var(--brand-dim)" } : surfaceCardStyle}>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={subtleTextStyle}>Step 3</p>
+            <p className="mt-1 text-sm font-semibold">Select guests and submit</p>
+          </div>
+        </div>
+
+        {flowStep !== "search" ? (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3" style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
+            <p className="text-sm font-medium" style={mutedTextStyle}>
+              Current flow: {flowStep === "inventory" ? "Choose inventory" : "Select guests and submit"}
+            </p>
+            <button
+              type="button"
+              onClick={() => setFlowStep("search")}
+              className="rounded-xl border px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em]"
+              style={{ borderColor: "var(--border)", color: "var(--text-secondary)", background: "var(--bg-elevated)" }}
+            >
+              Modify search
+            </button>
+          </div>
+        ) : null}
+
         {formError ? (
           <div className="mb-6 rounded-3xl border px-5 py-4 text-sm" style={{ borderColor: "rgba(239, 68, 68, 0.28)", background: "rgba(239, 68, 68, 0.12)", color: "var(--danger)" }}>
             {formError}
@@ -809,7 +1031,7 @@ export default function PublicBookingOrganism() {
         ) : null}
 
         <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="space-y-5">
+          <div className="space-y-5" ref={inventoryRef}>
             <div className="flex items-end justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Available inventory</p>
@@ -818,11 +1040,17 @@ export default function PublicBookingOrganism() {
               <p className="text-sm" style={subtleTextStyle}>{groupedBuildings.length} building{groupedBuildings.length === 1 ? "" : "s"}</p>
             </div>
 
-            {groupedBuildings.length === 0 ? (
+            {flowStep === "search" ? (
+              <div className="rounded-[2rem] border border-dashed p-8 text-center" style={{ borderColor: "var(--border-strong)", background: "var(--bg-surface)", color: "var(--text-secondary)" }}>
+                Complete Step 1 and click Search availability. We will auto-jump to available buildings.
+              </div>
+            ) : null}
+
+            {flowStep !== "search" && groupedBuildings.length === 0 ? (
               <div className="rounded-[2rem] border border-dashed p-8 text-center" style={{ borderColor: "var(--border-strong)", background: "var(--bg-surface)", color: "var(--text-secondary)" }}>
                 Search by city and dates to see building-wise availability. Then open layout to select a specific room/bed.
               </div>
-            ) : (
+            ) : flowStep !== "search" ? (
               <div className="grid gap-5">
                 {groupedBuildings.map((group) => {
                   const selectedCount = group.slots.filter(
@@ -892,10 +1120,10 @@ export default function PublicBookingOrganism() {
                   );
                 })}
               </div>
-            )}
+            ) : null}
           </div>
 
-          <aside className="space-y-5">
+          <aside className="space-y-5" ref={guestsRef}>
             <div className="rounded-[2rem] border p-6 shadow-[0_22px_70px_-50px_rgba(15,23,42,0.5)]" style={surfaceCardStyle}>
               <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Checkout panel</p>
               <h2 className="mt-2 text-3xl font-semibold tracking-[-0.03em]">Complete booking</h2>
@@ -938,47 +1166,106 @@ export default function PublicBookingOrganism() {
                     <p className="mt-1 text-sm text-white/75">Manual booking request · Admin approval required</p>
                   </div>
 
+                  {flowStep !== "guests" ? (
+                    <div className="rounded-3xl border p-4" style={{ borderColor: "var(--brand-border)", background: "var(--brand-dim)" }}>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--brand-light)" }}>Next step</p>
+                      <p className="mt-2 text-base font-semibold">Guest details are ready to fill.</p>
+                      <p className="mt-1 text-sm leading-6" style={mutedTextStyle}>
+                        Continue to guest selection to choose saved guests or create a new one.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={continueToGuestStep}
+                        className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em]"
+                        style={brandButtonStyle}
+                      >
+                        Continue to guest details <FiArrowRight />
+                      </button>
+                    </div>
+                  ) : null}
+
                   <div className="space-y-4">
-                    {guests.map((guest, index) => (
-                      <div key={index} className="rounded-3xl border p-4" style={elevatedCardStyle}>
-                        <p className="text-xs font-semibold uppercase tracking-[0.22em]" style={subtleTextStyle}>Guest {index + 1}</p>
-                        <div className="mt-3 grid gap-3">
-                          <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-                            Full name
-                            <input
-                              type="text"
-                              value={guest.fullName}
-                              onChange={(event) => updateGuest(index, "fullName", event.target.value)}
-                              className="h-11 w-full rounded-2xl border px-4 outline-none transition"
-                              style={inputStyle}
-                              placeholder="Guest full name"
-                            />
-                          </label>
-                          <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-                            Mobile number
-                            <input
-                              type="tel"
-                              value={guest.mobileNumber}
-                              onChange={(event) => updateGuest(index, "mobileNumber", event.target.value)}
-                              className="h-11 w-full rounded-2xl border px-4 outline-none transition"
-                              style={inputStyle}
-                              placeholder="Optional contact number"
-                            />
-                          </label>
-                          <AttachmentUploader
-                            entityType="booking_guest_aadhaar"
-                            entityId={0}
-                            hmsId={selectedOption.hmsId}
-                            multiple={false}
-                            accept="image/*,.pdf"
-                            label="Upload Aadhaar proof"
-                            showUploadedList
-                            onUploadComplete={(attachments) => handleUpload(index, attachments)}
-                            onUploadError={(message) => setFormError(message)}
-                          />
-                        </div>
+                    <div className="rounded-3xl border p-4" style={elevatedCardStyle}>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.22em]" style={subtleTextStyle}>Select guests</p>
+                        <p className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                          {selectedGuestIds.length} / {guestCount} selected
+                        </p>
                       </div>
-                    ))}
+
+                      {isAuthenticated ? (
+                        <>
+                          <div className="mt-3 space-y-2">
+                            {guestPool.map((guest) => {
+                              const checked = selectedGuestIds.includes(guest.id);
+                              const disabled = !checked && selectedGuestIds.length >= guestCount;
+                              return (
+                                <div
+                                  key={`guest-select-${guest.id}`}
+                                  className="group flex items-start justify-between gap-3 rounded-xl border px-3 py-3"
+                                  style={{
+                                    borderColor: checked ? "var(--brand-border)" : "var(--border)",
+                                    background: checked ? "var(--brand-dim)" : "var(--bg-surface)",
+                                    opacity: disabled ? 0.55 : 1,
+                                  }}
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{guest.fullName}</p>
+                                    <p className="text-xs" style={subtleTextStyle}>{guest.mobileNumber || "No mobile"}</p>
+                                    <p className="text-[11px] font-semibold" style={{ color: guest.aadhaarAttachmentId ? "var(--positive)" : "var(--danger)" }}>
+                                      {guest.aadhaarAttachmentId ? "Aadhaar attached" : isAdminMode ? "Aadhaar optional" : "Aadhaar missing"}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      disabled={disabled}
+                                      onClick={() => toggleGuestSelection(guest.id)}
+                                      className="rounded-lg px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em]"
+                                      style={checked ? brandButtonStyle : { background: "var(--bg-chip)", color: "var(--text-primary)" }}
+                                    >
+                                      {checked ? "Selected" : "Select"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeReusableGuest(guest.id)}
+                                      className="hidden rounded-lg border px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] group-hover:inline-flex"
+                                      style={{ borderColor: "rgba(239, 68, 68, 0.25)", color: "var(--danger)", background: "rgba(239, 68, 68, 0.08)" }}
+                                      aria-label={`Delete ${guest.fullName}`}
+                                    >
+                                      <FiTrash2 />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => openAddGuestModal()}
+                            className="mt-3 rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition"
+                            style={{ background: "var(--bg-chip)", color: "var(--text-primary)" }}
+                          >
+                            Add new guest
+                          </button>
+                        </>
+                      ) : (
+                        <p className="mt-2 text-sm" style={mutedTextStyle}>Login to choose or create reusable guest profiles.</p>
+                      )}
+                    </div>
+
+                    <div className="grid gap-2">
+                      {guests.map((guest, index) => (
+                        <div key={`selected-guest-${index}`} className="rounded-xl border px-4 py-3" style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={subtleTextStyle}>Guest {index + 1}</p>
+                          <p className="mt-1 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{guest.fullName || "Not selected"}</p>
+                          <p className="text-xs" style={subtleTextStyle}>{guest.mobileNumber || "No mobile"}</p>
+                          <p className="mt-1 text-[11px] font-semibold" style={{ color: guest.aadhaarAttachmentId ? "var(--positive)" : "var(--danger)" }}>
+                            {guest.aadhaarAttachmentId ? "Aadhaar attached" : isAdminMode ? "Aadhaar optional" : "Aadhaar missing"}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
@@ -1005,11 +1292,14 @@ export default function PublicBookingOrganism() {
                 </div>
               ) : (
                 <div className="mt-5 rounded-3xl border border-dashed p-6 text-sm leading-6" style={{ borderColor: "var(--border-strong)", background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
-                  Open any building layout, pick an available room/bed, then complete guest details and send your request.
+                  {flowStep === "inventory"
+                    ? "Open any building layout and pick an available room/bed to continue to guest step."
+                    : "Open any building layout, pick an available room/bed, then complete guest details and send your request."}
                 </div>
               )}
             </div>
 
+            {!isAdminMode && (
             <div className="rounded-[2rem] border p-6 shadow-[0_22px_70px_-50px_rgba(15,23,42,0.5)]" style={surfaceCardStyle}>
               <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Why book with us?</p>
               <div className="mt-4 space-y-4 text-sm leading-6" style={mutedTextStyle}>
@@ -1049,6 +1339,7 @@ export default function PublicBookingOrganism() {
                 </Link>
               )}
             </div>
+            )}
           </aside>
         </div>
       </section>
@@ -1127,6 +1418,7 @@ export default function PublicBookingOrganism() {
                               onClick={() => {
                                 setSelectedOption(slot);
                                 setLayoutBuilding(null);
+                                setFlowStep("inventory");
                               }}
                               className="rounded-lg border px-2.5 py-2 text-left transition"
                               style={isSelected ? { borderColor: "var(--brand)", background: "var(--brand-dim)" } : { borderColor: "var(--border)", background: "var(--bg-surface)" }}
@@ -1154,6 +1446,7 @@ export default function PublicBookingOrganism() {
                         onClick={() => {
                           setSelectedOption(slot);
                           setLayoutBuilding(null);
+                          setFlowStep("inventory");
                         }}
                         className="rounded-2xl border px-3 py-3 text-left transition"
                         style={isSelected ? { borderColor: "var(--brand)", background: "var(--brand-dim)" } : { borderColor: "var(--border)", background: "var(--bg-surface)" }}
@@ -1172,6 +1465,90 @@ export default function PublicBookingOrganism() {
                   No available slots on this floor for selected dates.
                 </div>
               ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showAddGuestModal && selectedOption ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closeAddGuestModal();
+            }
+          }}
+        >
+          <div className="w-full max-w-xl rounded-[2rem] border p-6 shadow-2xl" style={surfaceCardStyle}>
+            <div className="mb-4 flex items-start justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={subtleTextStyle}>Add new guest</p>
+                <h3 className="mt-1 text-2xl font-semibold">Create reusable guest profile</h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeAddGuestModal}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border"
+                style={{ borderColor: "var(--border)", color: "var(--text-muted)", background: "var(--bg-elevated)" }}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid gap-3">
+              <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                Full name
+                <input
+                  type="text"
+                  value={newGuestDraft.fullName}
+                  onChange={(event) => setNewGuestDraft((current) => ({ ...current, fullName: event.target.value }))}
+                  className="h-11 w-full rounded-2xl border px-4 outline-none transition"
+                  style={inputStyle}
+                  placeholder="Guest full name"
+                />
+              </label>
+              <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                Mobile number
+                <input
+                  type="tel"
+                  value={newGuestDraft.mobileNumber}
+                  onChange={(event) => setNewGuestDraft((current) => ({ ...current, mobileNumber: event.target.value }))}
+                  className="h-11 w-full rounded-2xl border px-4 outline-none transition"
+                  style={inputStyle}
+                  placeholder="Optional contact number"
+                />
+              </label>
+              <AttachmentUploader
+                entityType="booking_guest_aadhaar"
+                entityId={0}
+                hmsId={selectedOption.hmsId}
+                multiple={false}
+                accept="image/*,.pdf"
+                label={isAdminMode ? "Upload Aadhaar proof (optional)" : "Upload Aadhaar proof"}
+                showUploadedList
+                onUploadComplete={handleGuestDraftUpload}
+                onUploadError={(message) => setFormError(message)}
+              />
+            </div>
+
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeAddGuestModal}
+                className="rounded-xl border px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em]"
+                style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveNewGuestProfile}
+                className="rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em]"
+                style={brandButtonStyle}
+              >
+                Save and apply
+              </button>
             </div>
           </div>
         </div>

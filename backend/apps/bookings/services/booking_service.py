@@ -1,5 +1,5 @@
 from datetime import timezone as dt_timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from uuid import uuid4
 
 from django.db import transaction
@@ -12,7 +12,7 @@ from common.exceptions import ApiException
 
 
 class BookingService:
-	VALID_VIEWS = {"pending", "today", "ongoing", "upcoming", "old", "cancelled", "relieved"}
+	VALID_VIEWS = {"pending", "today", "ongoing", "upcoming", "overstay", "noshow", "old", "cancelled", "relieved"}
 	ADMIN_GROUPS = {"root_admin", "site_admin", "site_building_manager"}
 	APPROVAL_GROUPS = {"root_admin", "site_admin"}
 
@@ -79,6 +79,36 @@ class BookingService:
 		}
 
 	@staticmethod
+	def list_recent_guests(*, actor=None, limit: int = 8):
+		if not actor or not actor.is_authenticated:
+			raise ApiException("Login required", status_code=401)
+
+		try:
+			requested_limit = int(limit)
+		except (TypeError, ValueError):
+			requested_limit = 8
+		requested_limit = max(1, min(requested_limit, 20))
+
+		raw_guests = BookingRepository.list_recent_guests_for_user(user_id=actor.id, limit=requested_limit * 4)
+		unique = []
+		seen_keys = set()
+		for guest in raw_guests:
+			key = (
+				(guest.full_name or "").strip().lower(),
+				(guest.mobile_number or "").strip(),
+				guest.aadhaar_attachment_id or 0,
+			)
+			if key in seen_keys:
+				continue
+			seen_keys.add(key)
+			item = BookingService._serialize_guest(guest)
+			item["last_booking_reference"] = guest.booking.booking_reference if guest.booking else ""
+			unique.append(item)
+			if len(unique) >= requested_limit:
+				break
+		return unique
+
+	@staticmethod
 	def _serialize_booking(booking):
 		created_at_utc = ""
 		if booking.created_at:
@@ -124,7 +154,7 @@ class BookingService:
 	def list_bookings(*, view: str = "ongoing", mine: bool = False, hms_id=None, actor=None):
 		requested_view = (view or "ongoing").strip().lower()
 		if requested_view not in BookingService.VALID_VIEWS:
-			raise ApiException("view must be one of: pending, today, ongoing, upcoming, relieved, old, cancelled")
+			raise ApiException("view must be one of: pending, today, ongoing, upcoming, overstay, noshow, relieved, old, cancelled")
 
 		if hms_id is None and not mine:
 			hms_id = BookingService._get_actor_hms_scope(actor)
@@ -146,6 +176,12 @@ class BookingService:
 			queryset = queryset.filter(status="checked_in")
 		elif requested_view == "upcoming":
 			queryset = queryset.filter(status="confirmed", check_in__gt=today)
+		elif requested_view == "overstay":
+			# Guests physically present who have exceeded their checkout date
+			queryset = queryset.filter(status="checked_in", check_out__lte=today)
+		elif requested_view == "noshow":
+			# Confirmed but never checked in — check-in date has passed
+			queryset = queryset.filter(status="confirmed", check_in__lt=today)
 		elif requested_view == "cancelled":
 			queryset = queryset.filter(status__in=["cancelled", "rejected"])
 		elif requested_view == "relieved":
@@ -350,7 +386,7 @@ class BookingService:
 
 	@staticmethod
 	@transaction.atomic
-	def complete_booking(booking_reference: str, actor=None, company_id=None):
+	def complete_booking(booking_reference: str, actor=None, company_id=None, checkout_mode: str = "normal", extra_amount=None):
 		if not BookingService._has_any_group(actor, BookingService.APPROVAL_GROUPS):
 			raise ApiException("Only site admins can relieve bookings", status_code=403)
 
@@ -367,7 +403,27 @@ class BookingService:
 			if normalized_company_id is None or booking.hms_id != normalized_company_id:
 				raise ApiException("Booking is outside your subsite", status_code=403)
 
-		BookingRepository.update_booking(booking, status="completed")
+		mode = (checkout_mode or "normal").strip().lower()
+		if mode not in {"normal", "overstay"}:
+			raise ApiException("checkout_mode must be normal or overstay")
+
+		extra_charge = Decimal("0")
+		if extra_amount not in (None, ""):
+			try:
+				extra_charge = Decimal(str(extra_amount)).quantize(Decimal("0.01"))
+			except (InvalidOperation, TypeError, ValueError) as exc:
+				raise ApiException("extra_amount must be a valid number") from exc
+			if extra_charge < 0:
+				raise ApiException("extra_amount cannot be negative")
+
+		updates = {"status": "completed"}
+		if mode == "overstay":
+			updates["total_amount"] = (booking.total_amount or Decimal("0")) + extra_charge
+			note = f"Overstay checkout applied. Extra amount: INR {extra_charge:.2f}."
+			existing_note = (booking.special_request or "").strip()
+			updates["special_request"] = f"{existing_note}\n{note}".strip()
+
+		BookingRepository.update_booking(booking, **updates)
 		if booking.inventory_type == "room" and booking.room_id:
 			room = BookingRepository.get_room_for_update(booking.room_id)
 			if room and room.status == "occupied":
