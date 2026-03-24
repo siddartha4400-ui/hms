@@ -45,6 +45,32 @@ export const GET_USER_PROFILE_QUERY = gql`
   }
 `;
 
+export const GET_USER_ROLE_INFO_QUERY = gql`
+  query GetUserRoleInfo {
+    getUserRoleInfo {
+      roleName
+      allPermissions
+      availableRoutes {
+        path
+        name
+        requiresPermission
+        visible
+      }
+    }
+  }
+`;
+
+export const GET_AVAILABLE_ROUTES_QUERY = gql`
+  query GetAvailableRoutes {
+    getAvailableRoutes {
+      path
+      name
+      requiresPermission
+      visible
+    }
+  }
+`;
+
 export const UPDATE_PROFILE_MUTATION = gql`
   mutation UpdateProfile(
     $firstName: String
