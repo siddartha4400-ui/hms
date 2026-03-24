@@ -10,6 +10,8 @@ PROPERTY_TYPE_CHOICES = [
 ]
 
 ROOM_TYPE_CHOICES = [
+    ("ac", "AC"),
+    ("non_ac", "Non-AC"),
     ("single", "Single"),
     ("double", "Double"),
     ("dorm", "Dorm"),

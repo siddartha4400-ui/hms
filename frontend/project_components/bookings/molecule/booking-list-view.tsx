@@ -12,6 +12,7 @@ export type BookingListItem = {
   bookingReference: string;
   status: string;
   paymentMethod: string;
+  specialRequest?: string | null;
   inventoryType: string;
   hmsDisplayName: string;
   cityName: string;
@@ -106,6 +107,13 @@ export default function BookingListView({ bookings, emptyMessage, actionSlot }: 
             <p>Requester: <span className="font-medium text-slate-900">{booking.bookedByName || "-"}</span></p>
             <p>Email: <span className="font-medium text-slate-900">{booking.bookedByEmail || "-"}</span></p>
             <p>Mobile: <span className="font-medium text-slate-900">{booking.primaryGuestMobile || "-"}</span></p>
+          </div>
+        ) : null}
+
+        {booking.specialRequest ? (
+          <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Comments</p>
+            <p className="mt-1 whitespace-pre-wrap">{booking.specialRequest}</p>
           </div>
         ) : null}
 

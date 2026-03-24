@@ -79,6 +79,7 @@ class Query(graphene.ObjectType):
 		guest_count=graphene.Int(required=True),
 		hms_name=graphene.String(),
 		property_type=graphene.String(),
+		room_type=graphene.String(),
 	)
 	list_bookings = graphene.List(
 		BookingType,

@@ -50,6 +50,15 @@ class BookingServiceTests(TestCase):
             status="available",
             capacity=2,
         )
+        self.lodge_room_ac = Room.objects.create(
+            building=self.lodge_building,
+            floor=self.lodge_floor,
+            room_number="102",
+            room_type="ac",
+            price_per_day=1500,
+            status="available",
+            capacity=2,
+        )
         self.pg_room = Room.objects.create(
             building=self.pg_building,
             floor=self.pg_floor,
@@ -99,6 +108,21 @@ class BookingServiceTests(TestCase):
         inventory_types = {item["inventory_type"] for item in options}
         self.assertIn("bed", inventory_types)
         self.assertIn("room", inventory_types)
+
+    def test_search_availability_room_type_filter_returns_only_matching_rooms(self):
+        options = AvailabilityService.search(
+            {
+                "city_id": self.city.id,
+                "check_in": date.today().isoformat(),
+                "check_out": (date.today() + timedelta(days=2)).isoformat(),
+                "guest_count": 1,
+                "property_type": "lodge",
+                "room_type": "ac",
+            }
+        )
+
+        self.assertTrue(options)
+        self.assertTrue(all((item.get("room_type") or "").lower() == "ac" for item in options))
 
     def test_create_room_booking_marks_room_occupied(self):
         attachment = self._attachment()

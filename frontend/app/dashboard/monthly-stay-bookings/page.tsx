@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import PublicBookingOrganism from "@/project_components/bookings/organisam/public-booking-organism";
 import { getUserRole, getValidAuthToken } from "@/lib/auth-token";
 
-export default function WalkinBookingsPage() {
+export default function MonthlyStayBookingsPage() {
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
 
@@ -44,21 +44,21 @@ export default function WalkinBookingsPage() {
         </Link>
         <div className="mb-4 rounded-2xl border px-4 py-3" style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
           <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--text-muted)" }}>
-            Admin Walk-in Booking
+            Monthly Stay Booking
           </p>
           <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
-            For direct visitors at building. Create request here, then manage status in short-stay console.
+            Handle onboarding-based monthly bookings with one date picker and PG/Lodge comments.
           </p>
           <Link
-            href="/dashboard/bookings"
+            href="/dashboard/monthly-stay-console"
             className="mt-2 inline-flex rounded-lg border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] no-underline"
             style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
           >
-            Open short-stay console
+            Open monthly console
           </Link>
         </div>
       </div>
-      <PublicBookingOrganism mode="admin" />
+      <PublicBookingOrganism mode="admin" defaultStayDurationMode="monthly" />
     </div>
   );
 }

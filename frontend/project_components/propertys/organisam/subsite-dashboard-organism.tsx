@@ -121,12 +121,35 @@ export default function SubsiteDashboardOrganism() {
   const [floorForm, setFloorForm] = React.useState({ floorNumber: 1, description: '' });
   const [roomForm, setRoomForm] = React.useState({
     roomNumber: '',
-    roomType: 'single',
+    roomType: 'non_ac',
     status: 'available',
     capacity: 1,
     pricePerDay: '',
     pricePerMonth: '',
   });
+
+  const roomTypeOptions = React.useMemo(
+    () => [
+      { value: 'ac', label: 'AC' },
+      { value: 'non_ac', label: 'Non-AC' },
+      { value: 'single', label: 'Single (legacy)' },
+      { value: 'double', label: 'Double (legacy)' },
+      { value: 'deluxe', label: 'Deluxe (legacy)' },
+    ],
+    [],
+  );
+
+  const roomTypeLabelMap = React.useMemo(
+    () => ({
+      ac: 'AC',
+      non_ac: 'Non-AC',
+      single: 'Single',
+      double: 'Double',
+      deluxe: 'Deluxe',
+      dorm: 'Dorm',
+    }),
+    [],
+  );
   const [bedStatusForm, setBedStatusForm] = React.useState<'available' | 'occupied' | 'maintenance'>('available');
 
   const { data: hmsData } = useQuery<{ listHms: HMSRow[] }>(LIST_HMS_QUERY);
@@ -535,7 +558,7 @@ export default function SubsiteDashboardOrganism() {
         await refetchRooms();
         setRoomForm({
           roomNumber: '',
-          roomType: 'single',
+          roomType: 'non_ac',
           status: 'available',
           capacity: 1,
           pricePerDay: '',
@@ -599,7 +622,7 @@ export default function SubsiteDashboardOrganism() {
         setRoomToEdit(null);
         setRoomForm({
           roomNumber: '',
-          roomType: 'single',
+          roomType: 'non_ac',
           status: 'available',
           capacity: 1,
           pricePerDay: '',
@@ -1114,9 +1137,9 @@ export default function SubsiteDashboardOrganism() {
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p style={{ color: 'var(--text-primary)' }}>Room {room.roomNumber} ({room.roomType})</p>
+                      <p style={{ color: 'var(--text-primary)' }}>Room {room.roomNumber} ({roomTypeLabelMap[room.roomType as keyof typeof roomTypeLabelMap] || room.roomType})</p>
                       <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                        {isBedSupported ? `Capacity ${room.capacity} · Beds ${room.bedCount}` : `${room.status} · ${room.roomType}`}
+                        {isBedSupported ? `Capacity ${room.capacity} · Beds ${room.bedCount}` : `${room.status} · ${roomTypeLabelMap[room.roomType as keyof typeof roomTypeLabelMap] || room.roomType}`}
                       </p>
                       <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                         Day {room.pricePerDay ?? '-'} · Month {room.pricePerMonth ?? '-'}
@@ -1182,7 +1205,7 @@ export default function SubsiteDashboardOrganism() {
                   <option value="">Select room</option>
                   {rooms.map((room) => (
                     <option key={room.id} value={room.id}>
-                      Room {room.roomNumber} ({room.roomType})
+                      Room {room.roomNumber} ({roomTypeLabelMap[room.roomType as keyof typeof roomTypeLabelMap] || room.roomType})
                     </option>
                   ))}
                 </select>
@@ -1306,9 +1329,9 @@ export default function SubsiteDashboardOrganism() {
         ) : (
           <>
             <select value={roomForm.roomType} onChange={(e) => setRoomForm((p) => ({ ...p, roomType: e.target.value }))} className="h-12 rounded-xl px-3 w-full" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
-              <option value="single">Single</option>
-              <option value="double">Double</option>
-              <option value="deluxe">Deluxe</option>
+              {roomTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
             <select value={roomForm.status} onChange={(e) => setRoomForm((p) => ({ ...p, status: e.target.value }))} className="h-12 rounded-xl px-3 w-full" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
               <option value="available">Available</option>

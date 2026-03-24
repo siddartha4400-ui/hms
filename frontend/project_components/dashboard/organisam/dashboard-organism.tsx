@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { FiActivity, FiBookOpen, FiDollarSign, FiMap, FiUserPlus } from 'react-icons/fi';
+import { FiActivity, FiBookOpen, FiCalendar, FiDollarSign, FiMap, FiMoon, FiUserPlus } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
 import { getUserRole, getValidAuthToken } from '@/lib/auth-token';
 import DashboardMolecule from '../molecule/dashboard-molecule';
@@ -184,7 +184,7 @@ export default function DashboardOrganism() {
         icon: <FiUserPlus className="h-4 w-4" />,
       },
       {
-        title: 'Bookings Console',
+        title: 'Short-Stay Console',
         href: '/dashboard/bookings',
         icon: <FiBookOpen className="h-4 w-4" />,
       },
@@ -202,6 +202,16 @@ export default function DashboardOrganism() {
         title: 'Income',
         href: '/dashboard/income',
         icon: <FiDollarSign className="h-4 w-4" />,
+      },
+      {
+        title: 'Monthly Stay',
+        href: '/dashboard/monthly-stay-bookings',
+        icon: <FiMoon className="h-4 w-4" />,
+      },
+      {
+        title: 'Monthly Console',
+        href: '/dashboard/monthly-stay-console',
+        icon: <FiCalendar className="h-4 w-4" />,
       },
     ];
 

@@ -86,6 +86,9 @@ type RecentGuest = {
 };
 
 type FlowStep = "search" | "inventory" | "guests";
+type StayDurationMode = "short_period" | "monthly";
+type CommentScope = "pg" | "lodge";
+type RoomTypeFilter = "any" | "ac" | "non_ac";
 
 type NewGuestDraft = {
   fullName: string;
@@ -190,6 +193,18 @@ function formatCurrency(value?: number | null): string {
   }).format(value || 0);
 }
 
+function formatRoomTypeLabel(roomType?: string | null): string {
+  const normalized = (roomType || "").trim().toLowerCase();
+  if (!normalized) return "Lodge room";
+  if (normalized === "non_ac") return "Non-AC";
+  if (normalized === "ac") return "AC";
+  if (normalized === "dorm") return "Dorm";
+  if (normalized === "single") return "Single";
+  if (normalized === "double") return "Double";
+  if (normalized === "deluxe") return "Deluxe";
+  return roomType || "Lodge room";
+}
+
 function stayLength(checkIn: string, checkOut: string): number {
   const start = new Date(checkIn);
   const end = new Date(checkOut);
@@ -224,13 +239,16 @@ function areGuestListsEqual(left: BookingGuest[], right: BookingGuest[]): boolea
 
 type PublicBookingOrganismProps = {
   mode?: "public" | "admin";
+  defaultStayDurationMode?: StayDurationMode;
 };
 
-export default function PublicBookingOrganism({ mode = "public" }: PublicBookingOrganismProps) {
+export default function PublicBookingOrganism({ mode = "public", defaultStayDurationMode = "short_period" }: PublicBookingOrganismProps) {
   const today = useMemo(() => formatDateInput(new Date()), []);
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const [cityId, setCityId] = useState<number | "">("");
   const [propertyTypeFilter, setPropertyTypeFilter] = useState<"both" | "pg" | "lodge">("both");
+  const [roomTypeFilter, setRoomTypeFilter] = useState<RoomTypeFilter>("any");
+  const [stayDurationMode, setStayDurationMode] = useState<StayDurationMode>(defaultStayDurationMode);
   const [propertyKeyword, setPropertyKeyword] = useState("");
   const [checkIn, setCheckIn] = useState(today);
   const [checkOut, setCheckOut] = useState(addDays(today, 1));
@@ -240,6 +258,7 @@ export default function PublicBookingOrganism({ mode = "public" }: PublicBooking
   const [layoutFloor, setLayoutFloor] = useState<number | null>(null);
   const [guests, setGuests] = useState<BookingGuest[]>(makeGuestList(1));
   const [specialRequest, setSpecialRequest] = useState("");
+  const [commentScope, setCommentScope] = useState<CommentScope>("lodge");
   const [formError, setFormError] = useState("");
   const [confirmation, setConfirmation] = useState<BookingResponse["createBooking"]["booking"] | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -306,7 +325,10 @@ export default function PublicBookingOrganism({ mode = "public" }: PublicBooking
     fetchPolicy: "network-only",
   });
 
-  const nights = stayLength(checkIn, checkOut);
+  const isPgOnly = propertyTypeFilter === "pg";
+  const effectiveCheckIn = checkIn;
+  const effectiveCheckOut = stayDurationMode === "monthly" ? addDays(checkIn, 30) : checkOut;
+  const nights = stayLength(effectiveCheckIn, effectiveCheckOut);
   const recentGuests = recentGuestsData?.myRecentGuests ?? EMPTY_RECENT_GUESTS;
   const guestPool = useMemo<RecentGuest[]>(() => {
     const source = [...customGuestProfiles, ...recentGuests];
@@ -484,7 +506,22 @@ export default function PublicBookingOrganism({ mode = "public" }: PublicBooking
     setSubsiteLabel(matchedSubsite.hmsDisplayName || matchedSubsite.hmsName);
   }, [hmsData]);
 
+  useEffect(() => {
+    if (propertyTypeFilter !== "pg") {
+      return;
+    }
+    if (guestCount !== 1) {
+      setGuestCount(1);
+      setSelectedGuestIds((current) => current.slice(0, 1));
+    }
+  }, [guestCount, propertyTypeFilter]);
+
   function handleGuestCountChange(nextCount: number) {
+    if (propertyTypeFilter === "pg") {
+      setGuestCount(1);
+      setSelectedGuestIds((current) => current.slice(0, 1));
+      return;
+    }
     setGuestCount(nextCount);
     setSelectedGuestIds((current) => current.slice(0, nextCount));
   }
@@ -494,15 +531,19 @@ export default function PublicBookingOrganism({ mode = "public" }: PublicBooking
       setFormError("Select a city before searching.");
       return false;
     }
-    if (!checkIn || !checkOut) {
+    if (!checkIn) {
+      setFormError("Choose a check-in or onboarding date.");
+      return false;
+    }
+    if (stayDurationMode !== "monthly" && !checkOut) {
       setFormError("Choose both check-in and check-out dates.");
       return false;
     }
-    if (nights <= 0) {
+    if (stayDurationMode !== "monthly" && nights <= 0) {
       setFormError("Check-out must be after check-in.");
       return false;
     }
-    if (nights > 31) {
+    if (stayDurationMode !== "monthly" && nights > 31) {
       setFormError("Stay must be less than or equal to 31 days.");
       return false;
     }
@@ -523,11 +564,12 @@ export default function PublicBookingOrganism({ mode = "public" }: PublicBooking
     const response = await loadAvailability({
       variables: {
         cityId: Number(cityId),
-        checkIn,
-        checkOut,
-        guestCount,
+        checkIn: effectiveCheckIn,
+        checkOut: effectiveCheckOut,
+        guestCount: isPgOnly ? 1 : guestCount,
         hmsName: propertyKeyword.trim() || null,
         propertyType: propertyTypeFilter === 'both' ? null : propertyTypeFilter,
+        roomType: roomTypeFilter === "any" ? null : roomTypeFilter,
       },
     });
     const availableItems = (response.data?.searchAvailability || []).filter((item) => item.available);
@@ -644,11 +686,17 @@ export default function PublicBookingOrganism({ mode = "public" }: PublicBooking
         inventoryType: selectedOption?.inventoryType,
         roomId: selectedOption?.roomId,
         bedId: selectedOption?.bedId,
-        checkIn,
-        checkOut,
-        guestCount,
+        checkIn: effectiveCheckIn,
+        checkOut: effectiveCheckOut,
+        guestCount: isPgOnly ? 1 : guestCount,
         paymentMethod: "manual_booking",
-        specialRequest: specialRequest.trim() || null,
+        specialRequest: [
+          stayDurationMode === "monthly" ? "Booking mode: Monthly stay" : "Booking mode: Short period",
+          `Comment scope: ${commentScope === "pg" ? "PG only" : "Lodge only"}`,
+          specialRequest.trim(),
+        ]
+          .filter(Boolean)
+          .join(" | "),
         guests: guests.map((guest) => ({
           fullName: guest.fullName,
           mobileNumber: guest.mobileNumber,
@@ -894,63 +942,111 @@ export default function PublicBookingOrganism({ mode = "public" }: PublicBooking
                 ) : null}
               </label>
               <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                Duration mode
+                <ThemedSelect
+                  value={stayDurationMode}
+                  onChange={(value) => setStayDurationMode(value as StayDurationMode)}
+                  options={[
+                    { label: "Small period", value: "short_period" },
+                    { label: "Monthly stay", value: "monthly" },
+                  ]}
+                />
+              </label>
+              <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                Room type
+                <ThemedSelect
+                  value={roomTypeFilter}
+                  onChange={(value) => setRoomTypeFilter(value as RoomTypeFilter)}
+                  options={[
+                    { label: "Any room type", value: "any" },
+                    { label: "AC", value: "ac" },
+                    { label: "Non-AC", value: "non_ac" },
+                  ]}
+                />
+                <p className="text-xs" style={subtleTextStyle}>Use AC or Non-AC to narrow search results.</p>
+              </label>
+              <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                 Guests
                 <ThemedSelect
                   value={guestCount}
                   onChange={(value) => handleGuestCountChange(Number(value))}
+                  disabled={propertyTypeFilter === "pg"}
                   options={[1, 2, 3, 4].map((value) => ({
                     label: `${value} ${value === 1 ? "guest" : "guests"}`,
                     value,
                   }))}
                 />
+                {propertyTypeFilter === "pg" ? (
+                  <p className="text-xs" style={subtleTextStyle}>PG booking allows 1 guest only.</p>
+                ) : null}
               </label>
-              <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-                Check-in
-                <ThemedDatePicker
-                  value={checkIn}
-                  minDate={today}
-                  yearStart={currentYear}
-                  yearEnd={currentYear + 2}
-                  onChange={(nextValue) => {
-                    const bounded = nextValue < today ? today : nextValue;
-                    setCheckIn(bounded);
-                    if (stayLength(bounded, checkOut) <= 0) {
-                      setCheckOut(addDays(bounded, 1));
-                    }
-                    if (stayLength(bounded, checkOut) > 31) {
-                      setCheckOut(addDays(bounded, 31));
-                    }
-                  }}
-                  placeholder="DD-MM-YYYY"
-                  className="w-full"
-                />
-              </label>
-              <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-                Check-out
-                <ThemedDatePicker
-                  value={checkOut}
-                  minDate={addDays(checkIn, 1)}
-                  yearStart={currentYear}
-                  yearEnd={currentYear + 2}
-                  onChange={(nextValue) => {
-                    if (nextValue <= checkIn) {
-                      setCheckOut(addDays(checkIn, 1));
-                      return;
-                    }
-                    if (stayLength(checkIn, nextValue) > 31) {
-                      setCheckOut(addDays(checkIn, 31));
-                      return;
-                    }
-                    setCheckOut(nextValue);
-                  }}
-                  placeholder="DD-MM-YYYY"
-                  className="w-full"
-                />
-              </label>
+              {stayDurationMode === "monthly" ? (
+                <label className="space-y-2 text-sm font-medium md:col-span-2" style={{ color: "var(--text-secondary)" }}>
+                  Joining / onboarding date
+                  <ThemedDatePicker
+                    value={checkIn}
+                    minDate={today}
+                    yearStart={currentYear}
+                    yearEnd={currentYear + 2}
+                    onChange={(nextValue) => {
+                      const bounded = nextValue < today ? today : nextValue;
+                      setCheckIn(bounded);
+                    }}
+                    placeholder="DD-MM-YYYY"
+                    className="w-full"
+                  />
+                </label>
+              ) : (
+                <>
+                  <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                    Check-in
+                    <ThemedDatePicker
+                      value={checkIn}
+                      minDate={today}
+                      yearStart={currentYear}
+                      yearEnd={currentYear + 2}
+                      onChange={(nextValue) => {
+                        const bounded = nextValue < today ? today : nextValue;
+                        setCheckIn(bounded);
+                        if (stayLength(bounded, checkOut) <= 0) {
+                          setCheckOut(addDays(bounded, 1));
+                        }
+                        if (stayLength(bounded, checkOut) > 31) {
+                          setCheckOut(addDays(bounded, 31));
+                        }
+                      }}
+                      placeholder="DD-MM-YYYY"
+                      className="w-full"
+                    />
+                  </label>
+                  <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                    Check-out
+                    <ThemedDatePicker
+                      value={checkOut}
+                      minDate={addDays(checkIn, 1)}
+                      yearStart={currentYear}
+                      yearEnd={currentYear + 2}
+                      onChange={(nextValue) => {
+                        if (nextValue <= checkIn) {
+                          setCheckOut(addDays(checkIn, 1));
+                          return;
+                        }
+                        if (stayLength(checkIn, nextValue) > 31) {
+                          setCheckOut(addDays(checkIn, 31));
+                          return;
+                        }
+                        setCheckOut(nextValue);
+                      }}
+                      placeholder="DD-MM-YYYY"
+                      className="w-full"
+                    />
+                  </label>
+                </>
+              )}
             </div>
 
             <p className="mt-3 text-xs" style={subtleTextStyle}>
-              Trip dates: <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{formatDateDDMMYYYY(checkIn)}</span> to <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{formatDateDDMMYYYY(checkOut)}</span>
+              Trip dates: <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{formatDateDDMMYYYY(effectiveCheckIn)}</span> to <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{formatDateDDMMYYYY(effectiveCheckOut)}</span>
             </p>
 
             <button
@@ -964,9 +1060,9 @@ export default function PublicBookingOrganism({ mode = "public" }: PublicBooking
             </button>
 
             <div className="mt-5 flex flex-wrap items-center gap-3 text-sm" style={mutedTextStyle}>
-              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={chipStyle}><FiCalendar /> stay under 31 days</span>
+              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={chipStyle}><FiCalendar /> {stayDurationMode === "monthly" ? "fixed 30-day monthly block" : "stay under 31 days"}</span>
               <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={chipStyle}><FiShield /> manual admin approval</span>
-              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={chipStyle}><FiShield /> Aadhaar required</span>
+              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={chipStyle}><FiShield /> Aadhaar required for public bookings</span>
             </div>
           </div>
         </div>
@@ -1269,7 +1365,20 @@ export default function PublicBookingOrganism({ mode = "public" }: PublicBooking
                   </div>
 
                   <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-                    Special request
+                    Comment scope
+                    <ThemedSelect
+                      value={commentScope}
+                      onChange={(value) => setCommentScope(value as CommentScope)}
+                      options={[
+                        { label: "PG only", value: "pg" },
+                        { label: "Lodge only", value: "lodge" },
+                      ]}
+                    />
+                    <p className="text-xs" style={subtleTextStyle}>Choose where this comment should apply.</p>
+                  </label>
+
+                  <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                    Comments
                     <textarea
                       value={specialRequest}
                       onChange={(event) => setSpecialRequest(event.target.value)}
@@ -1453,7 +1562,7 @@ export default function PublicBookingOrganism({ mode = "public" }: PublicBooking
                       >
                         <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={subtleTextStyle}>Room</p>
                         <p className="mt-1 text-lg font-semibold">{slot.roomNumber}</p>
-                        <p className="mt-1 text-xs" style={subtleTextStyle}>{slot.roomType || 'Lodge room'}</p>
+                        <p className="mt-1 text-xs" style={subtleTextStyle}>{formatRoomTypeLabel(slot.roomType)}</p>
                         <p className="mt-2 text-sm font-semibold" style={{ color: "var(--brand)" }}>{formatCurrency(slot.totalAmount)}</p>
                       </button>
                     );

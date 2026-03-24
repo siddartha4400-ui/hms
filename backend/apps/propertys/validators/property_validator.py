@@ -20,8 +20,8 @@ class PropertyValidator:
     @staticmethod
     def validate_room_type(value: str):
         normalized = (value or "").strip().lower()
-        if normalized not in {"single", "double", "dorm", "deluxe"}:
-            raise ApiException("room_type must be single, double, dorm, or deluxe")
+        if normalized not in {"ac", "non_ac", "single", "double", "dorm", "deluxe"}:
+            raise ApiException("room_type must be ac, non_ac, single, double, dorm, or deluxe")
         return normalized
 
     @staticmethod

@@ -8,6 +8,7 @@ export const SEARCH_AVAILABILITY_QUERY = gql`
     $guestCount: Int!
     $hmsName: String
     $propertyType: String
+    $roomType: String
   ) {
     searchAvailability(
       cityId: $cityId
@@ -16,6 +17,7 @@ export const SEARCH_AVAILABILITY_QUERY = gql`
       guestCount: $guestCount
       hmsName: $hmsName
       propertyType: $propertyType
+      roomType: $roomType
     ) {
       inventoryType
       bookingTargetId
@@ -176,6 +178,7 @@ export const LIST_BOOKINGS_QUERY = gql`
       bookingReference
       status
       paymentMethod
+      specialRequest
       inventoryType
       hmsDisplayName
       cityName
