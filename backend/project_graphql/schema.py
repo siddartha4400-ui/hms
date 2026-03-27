@@ -70,6 +70,7 @@ class Mutation(graphene.ObjectType):
     cancel_booking = BookingsMutation.cancel_booking
     complete_booking = BookingsMutation.complete_booking
     check_in_booking = BookingsMutation.check_in_booking
+    expire_pending_bookings = BookingsMutation.expire_pending_bookings
 
 
 schema = graphene.Schema(query=Query, mutation=Mutation)

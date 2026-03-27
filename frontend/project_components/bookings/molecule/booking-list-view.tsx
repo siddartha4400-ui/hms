@@ -17,6 +17,7 @@ export type BookingListItem = {
   hmsDisplayName: string;
   cityName: string;
   buildingName: string;
+  propertyType?: string | null;
   roomNumber?: string | null;
   bedNumber?: string | null;
   checkIn: string;

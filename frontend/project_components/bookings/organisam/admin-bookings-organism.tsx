@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery } from "@apollo/client/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   FiAlertCircle,
   FiCalendar,
@@ -22,8 +23,10 @@ import {
   LIST_BOOKINGS_QUERY,
   REJECT_BOOKING_MUTATION,
 } from "../graphql/operations";
+import { LIST_BUILDINGS_QUERY } from "@/project_components/propertys/graphql/operations";
 import { getUserHmsId } from "@/lib/auth-token";
 import { GET_USER_PROFILE_QUERY } from "@/project_components/common-routes/graphql/operations";
+import { LIST_HMS_QUERY } from "@/project_components/subsites/graphql/operations";
 
 type ViewType =
   | "pending"
@@ -42,14 +45,75 @@ type BookingResponse = {
   listBookings: BookingListItem[];
 };
 
+type BuildingFilterItem = {
+  id: number;
+  cityName?: string | null;
+  name?: string | null;
+  propertyType?: string | null;
+};
+
+type BuildingFilterResponse = {
+  listBuildings: BuildingFilterItem[];
+};
+
+type BookingMutationPayload = {
+  success?: boolean | null;
+  message?: string | null;
+};
+
+type ApproveBookingResponse = { approveBooking?: BookingMutationPayload | null };
+type RejectBookingResponse = { rejectBooking?: BookingMutationPayload | null };
+type CancelBookingResponse = { cancelBooking?: BookingMutationPayload | null };
+type CompleteBookingResponse = { completeBooking?: BookingMutationPayload | null };
+type CheckInBookingResponse = { checkInBooking?: BookingMutationPayload | null };
+
 type ProfileResponse = {
   getUserProfile?: {
     companyId?: string | null;
   };
 };
 
+type HmsItem = {
+  id: number;
+  hmsDisplayName?: string | null;
+  hmsName?: string | null;
+  hmsType?: number | null;
+};
+
+type HmsListResponse = {
+  subsiteBaseDomain?: string | null;
+  listHms: HmsItem[];
+};
+
+function resolveHostSubsiteKey(hostName: string, baseDomain: string): string | null {
+  const host = (hostName || "").trim().toLowerCase();
+  if (!host || host === "localhost" || host === "127.0.0.1") {
+    return null;
+  }
+
+  if (baseDomain && host.endsWith(`.${baseDomain}`)) {
+    const leftPart = host.slice(0, -(`.${baseDomain}`).length);
+    const candidate = leftPart.split(".")[0]?.trim().toLowerCase();
+    if (!candidate || candidate === "www" || candidate === "backend") {
+      return null;
+    }
+    return candidate;
+  }
+
+  const parts = host.split(".").filter(Boolean);
+  if (parts.length >= 3) {
+    const candidate = parts[0]?.trim().toLowerCase();
+    if (!candidate || candidate === "www" || candidate === "backend") {
+      return null;
+    }
+    return candidate;
+  }
+
+  return null;
+}
+
 const TABS: Array<{ key: ViewType; label: string; icon: React.ReactNode }> = [
-  { key: "pending", label: "Pending Requests", icon: <FiClock className="h-4 w-4" /> },
+  { key: "pending", label: "Booking Requests", icon: <FiClock className="h-4 w-4" /> },
   { key: "today", label: "Today's Check-ins", icon: <FiCalendar className="h-4 w-4" /> },
   { key: "noshow", label: "No Shows", icon: <FiAlertCircle className="h-4 w-4" /> },
   { key: "ongoing", label: "In-House Guests", icon: <FiUserCheck className="h-4 w-4" /> },
@@ -92,10 +156,21 @@ function canLateCheckIn(booking: BookingListItem): boolean {
   return checkOutDate >= today;
 }
 
+function propertyTypeFromHmsType(hmsType?: number | null): "pg" | "lodge" | null {
+  if (hmsType === 2) return "pg";
+  if (hmsType === 1) return "lodge";
+  return null;
+}
+
 export default function AdminBookingsOrganism({ initialTab = "pending", monthlyOnly = false }: Props) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<ViewType>(initialTab);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [selectedSubsite, setSelectedSubsite] = useState("all");
+  const [selectedCity, setSelectedCity] = useState("all");
+  const [selectedPropertyType, setSelectedPropertyType] = useState("all");
+  const [selectedBuilding, setSelectedBuilding] = useState("all");
   const [checkoutModal, setCheckoutModal] = useState<{ open: boolean; bookingReference: string }>({
     open: false,
     bookingReference: "",
@@ -113,21 +188,97 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
     return Number.isFinite(parsed) ? parsed : null;
   }, [profileData]);
 
-  const hmsId = storedHmsId ?? profileCompanyId;
-  const queryView: QueryViewType = activeTab === "due_soon" ? "ongoing" : activeTab;
-
-  const { data, loading, error: listError, refetch } = useQuery<BookingResponse>(LIST_BOOKINGS_QUERY, {
-    variables: { view: queryView, mine: false, ...(hmsId ? { hmsId } : {}) },
-    fetchPolicy: "network-only",
+  const { data: hmsData, loading: hmsLoading } = useQuery<HmsListResponse>(LIST_HMS_QUERY, {
+    fetchPolicy: "cache-first",
   });
 
-  const [approveBooking, { loading: approving }] = useMutation(APPROVE_BOOKING_MUTATION);
-  const [rejectBooking, { loading: rejecting }] = useMutation(REJECT_BOOKING_MUTATION);
-  const [cancelBooking, { loading: cancelling }] = useMutation(CANCEL_BOOKING_MUTATION);
-  const [completeBooking, { loading: relieving }] = useMutation(COMPLETE_BOOKING_MUTATION);
-  const [checkInBooking, { loading: checkingIn }] = useMutation(CHECK_IN_BOOKING_MUTATION);
+  const hostName = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
+  const baseDomain = (hmsData?.subsiteBaseDomain || "").trim().toLowerCase();
+  const isMainSiteHost = baseDomain
+    ? hostName === baseDomain || hostName === `www.${baseDomain}`
+    : hostName === "hms.local" || hostName === "www.hms.local";
+  const subsiteOptions = useMemo(() => hmsData?.listHms || [], [hmsData]);
+  const hostSubsiteKey = useMemo(() => resolveHostSubsiteKey(hostName, baseDomain), [hostName, baseDomain]);
+  const hostMatchedSubsite = useMemo(
+    () => subsiteOptions.find((item) => (item.hmsName || "").toLowerCase() === hostSubsiteKey) || null,
+    [hostSubsiteKey, subsiteOptions],
+  );
 
-  const bookings = useMemo(() => {
+  const baseHmsId = storedHmsId ?? profileCompanyId;
+  const selectedSubsiteId = selectedSubsite === "all" ? null : Number(selectedSubsite);
+  const effectiveHmsId = isMainSiteHost ? selectedSubsiteId : (hostMatchedSubsite?.id ?? baseHmsId);
+  const queryView: QueryViewType = activeTab === "due_soon" ? "ongoing" : activeTab;
+  const hasCrossSubsiteMismatch =
+    !isMainSiteHost &&
+    Boolean(hostMatchedSubsite?.id) &&
+    Boolean(baseHmsId) &&
+    Number(baseHmsId) !== Number(hostMatchedSubsite?.id);
+
+  useEffect(() => {
+    if (hmsLoading) return;
+    if (hasCrossSubsiteMismatch) {
+      router.replace("/");
+    }
+  }, [hasCrossSubsiteMismatch, hmsLoading, router]);
+
+  useEffect(() => {
+    if (!isMainSiteHost) return;
+    if (hmsLoading) return;
+    if (subsiteOptions.length === 0) return;
+
+    if (selectedSubsite === "all") {
+      return;
+    }
+
+    const selectedId = Number(selectedSubsite);
+    if (!Number.isFinite(selectedId)) {
+      setSelectedSubsite("all");
+      return;
+    }
+
+    if (!subsiteOptions.some((item) => item.id === selectedId)) {
+      setSelectedSubsite("all");
+    }
+  }, [hmsLoading, isMainSiteHost, selectedSubsite, subsiteOptions]);
+
+  useEffect(() => {
+    if (!isMainSiteHost) return;
+    if (hmsLoading) return;
+    if (subsiteOptions.length === 0) return;
+    if (selectedSubsite !== "all") return;
+    if (baseHmsId && subsiteOptions.some((item) => item.id === baseHmsId)) {
+      setSelectedSubsite(String(baseHmsId));
+    }
+  }, [hmsLoading, isMainSiteHost, selectedSubsite, baseHmsId, subsiteOptions]);
+
+  const selectedHmsRecord = useMemo(() => {
+    if (!effectiveHmsId) return null;
+    return subsiteOptions.find((item) => item.id === effectiveHmsId) || null;
+  }, [effectiveHmsId, subsiteOptions]);
+
+  const lockedPropertyType = useMemo(() => {
+    if (isMainSiteHost) return null;
+    return propertyTypeFromHmsType(selectedHmsRecord?.hmsType ?? null);
+  }, [isMainSiteHost, selectedHmsRecord]);
+
+  const { data, loading, error: listError, refetch } = useQuery<BookingResponse>(LIST_BOOKINGS_QUERY, {
+    skip: hasCrossSubsiteMismatch,
+    variables: { view: queryView, mine: false, ...(effectiveHmsId ? { hmsId: effectiveHmsId } : {}) },
+    fetchPolicy: "network-only",
+  });
+  const { data: buildingsData } = useQuery<BuildingFilterResponse>(LIST_BUILDINGS_QUERY, {
+    skip: hasCrossSubsiteMismatch,
+    variables: { ...(effectiveHmsId ? { companyId: effectiveHmsId } : {}), isActive: true },
+    fetchPolicy: "cache-first",
+  });
+
+  const [approveBooking, { loading: approving }] = useMutation<ApproveBookingResponse>(APPROVE_BOOKING_MUTATION);
+  const [rejectBooking, { loading: rejecting }] = useMutation<RejectBookingResponse>(REJECT_BOOKING_MUTATION);
+  const [cancelBooking, { loading: cancelling }] = useMutation<CancelBookingResponse>(CANCEL_BOOKING_MUTATION);
+  const [completeBooking, { loading: relieving }] = useMutation<CompleteBookingResponse>(COMPLETE_BOOKING_MUTATION);
+  const [checkInBooking, { loading: checkingIn }] = useMutation<CheckInBookingResponse>(CHECK_IN_BOOKING_MUTATION);
+
+  const baseBookings = useMemo(() => {
     let source = data?.listBookings || [];
 
     if (monthlyOnly) {
@@ -150,10 +301,130 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
     return source;
   }, [activeTab, data, monthlyOnly]);
 
+  const allFilterBuildings = useMemo(() => buildingsData?.listBuildings || [], [buildingsData]);
+
+  const cityOptions = useMemo(() => {
+    const names = new Set<string>();
+    allFilterBuildings.forEach((item) => {
+      const name = (item.cityName || "").trim();
+      if (name) names.add(name);
+    });
+    if (names.size === 0) {
+      baseBookings.forEach((item) => {
+        const name = (item.cityName || "").trim();
+        if (name) names.add(name);
+      });
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [allFilterBuildings, baseBookings]);
+
+  const propertyTypeOptions = useMemo(() => {
+    const values = new Set<string>();
+    allFilterBuildings.forEach((item) => {
+      const type = (item.propertyType || "").trim().toLowerCase();
+      if (type) values.add(type);
+    });
+    if (values.size === 0) {
+      baseBookings.forEach((item) => {
+        const type = (item.propertyType || "").trim().toLowerCase();
+        if (type) values.add(type);
+      });
+    }
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [allFilterBuildings, baseBookings]);
+
+  useEffect(() => {
+    if (selectedCity !== "all" && !cityOptions.includes(selectedCity)) {
+      setSelectedCity("all");
+    }
+  }, [cityOptions, selectedCity]);
+
+  useEffect(() => {
+    if (lockedPropertyType) {
+      if (selectedPropertyType !== lockedPropertyType) {
+        setSelectedPropertyType(lockedPropertyType);
+      }
+      return;
+    }
+
+    if (selectedPropertyType !== "all" && !propertyTypeOptions.includes(selectedPropertyType)) {
+      setSelectedPropertyType("all");
+    }
+  }, [lockedPropertyType, propertyTypeOptions, selectedPropertyType]);
+
+  const cityAndPropertyFilteredBookings = useMemo(() => {
+    return baseBookings.filter((item) => {
+      if (selectedCity !== "all" && item.cityName !== selectedCity) {
+        return false;
+      }
+      const itemPropertyType = (item.propertyType || "").trim().toLowerCase();
+      if (selectedPropertyType !== "all" && itemPropertyType !== selectedPropertyType) {
+        return false;
+      }
+      return true;
+    });
+  }, [baseBookings, selectedCity, selectedPropertyType]);
+
+  const buildingOptions = useMemo(() => {
+    const names = new Set<string>();
+    const filteredBuildings = allFilterBuildings.filter((item) => {
+      const cityName = (item.cityName || "").trim();
+      const type = (item.propertyType || "").trim().toLowerCase();
+      if (selectedCity !== "all" && cityName !== selectedCity) {
+        return false;
+      }
+      if (selectedPropertyType !== "all" && type !== selectedPropertyType) {
+        return false;
+      }
+      return true;
+    });
+    filteredBuildings.forEach((item) => {
+      const name = (item.name || "").trim();
+      if (name) names.add(name);
+    });
+
+    if (names.size === 0) {
+      cityAndPropertyFilteredBookings.forEach((item) => {
+        const name = (item.buildingName || "").trim();
+        if (name) names.add(name);
+      });
+    }
+
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [allFilterBuildings, cityAndPropertyFilteredBookings, selectedCity, selectedPropertyType]);
+
+  useEffect(() => {
+    if (selectedBuilding !== "all" && !buildingOptions.includes(selectedBuilding)) {
+      setSelectedBuilding("all");
+    }
+  }, [buildingOptions, selectedBuilding]);
+
+  const bookings = useMemo(() => {
+    if (selectedBuilding === "all") {
+      return cityAndPropertyFilteredBookings;
+    }
+    return cityAndPropertyFilteredBookings.filter((item) => item.buildingName === selectedBuilding);
+  }, [cityAndPropertyFilteredBookings, selectedBuilding]);
+
+  const selectedCityLabel = selectedCity === "all" ? "All Cities" : selectedCity;
+  const selectedPropertyTypeLabel =
+    selectedPropertyType === "all"
+      ? "All Types"
+      : selectedPropertyType === "lodge"
+        ? "Hostel/Lodge"
+        : selectedPropertyType.toUpperCase();
+  const selectedSubsiteLabel =
+    selectedSubsite === "all"
+      ? "All Subsites"
+      : (subsiteOptions.find((item) => item.id === Number(selectedSubsite))?.hmsDisplayName ||
+         subsiteOptions.find((item) => item.id === Number(selectedSubsite))?.hmsName ||
+         "Selected Subsite");
+  const selectedBuildingLabel = selectedBuilding === "all" ? "All Buildings" : selectedBuilding;
+
   async function handleApprove(bookingReference: string) {
     setMessage("");
     setError("");
-    const response = await approveBooking({ variables: { bookingReference, ...(hmsId ? { hmsId } : {}) } });
+    const response = await approveBooking({ variables: { bookingReference, ...(effectiveHmsId ? { hmsId: effectiveHmsId } : {}) } });
     const payload = response.data?.approveBooking;
     if (!payload?.success) {
       setError(payload?.message || "Unable to approve booking request.");
@@ -167,7 +438,7 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
   async function handleReject(bookingReference: string) {
     setMessage("");
     setError("");
-    const response = await rejectBooking({ variables: { bookingReference, ...(hmsId ? { hmsId } : {}) } });
+    const response = await rejectBooking({ variables: { bookingReference, ...(effectiveHmsId ? { hmsId: effectiveHmsId } : {}) } });
     const payload = response.data?.rejectBooking;
     if (!payload?.success) {
       setError(payload?.message || "Unable to reject booking request.");
@@ -181,7 +452,7 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
   async function handleCancel(bookingReference: string) {
     setMessage("");
     setError("");
-    const response = await cancelBooking({ variables: { bookingReference, ...(hmsId ? { hmsId } : {}) } });
+    const response = await cancelBooking({ variables: { bookingReference, ...(effectiveHmsId ? { hmsId: effectiveHmsId } : {}) } });
     const payload = response.data?.cancelBooking;
     if (!payload?.success) {
       setError(payload?.message || "Unable to cancel booking.");
@@ -198,7 +469,7 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
     const response = await completeBooking({
       variables: {
         bookingReference,
-        ...(hmsId ? { hmsId } : {}),
+        ...(effectiveHmsId ? { hmsId: effectiveHmsId } : {}),
         checkoutMode: "normal",
       },
     });
@@ -228,7 +499,7 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
     const response = await completeBooking({
       variables: {
         bookingReference: checkoutModal.bookingReference,
-        ...(hmsId ? { hmsId } : {}),
+        ...(effectiveHmsId ? { hmsId: effectiveHmsId } : {}),
         checkoutMode: "overstay",
         extraAmount: parsedAmount,
       },
@@ -249,7 +520,7 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
   async function handleCheckIn(bookingReference: string) {
     setMessage("");
     setError("");
-    const response = await checkInBooking({ variables: { bookingReference, ...(hmsId ? { hmsId } : {}) } });
+    const response = await checkInBooking({ variables: { bookingReference, ...(effectiveHmsId ? { hmsId: effectiveHmsId } : {}) } });
     const payload = response.data?.checkInBooking;
     if (!payload?.success) {
       setError(payload?.message || "Unable to check in guest.");
@@ -320,7 +591,70 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
             {monthlyOnly ? "Monthly Stay Console" : "Short-Stay Console"}
           </h1>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-end gap-2">
+          {isMainSiteHost ? (
+            <label className="min-w-[190px]">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Subsite</span>
+              <select
+                value={selectedSubsite}
+                onChange={(event) => setSelectedSubsite(event.target.value)}
+                className="h-10 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs font-semibold tracking-wide text-slate-200 outline-none"
+              >
+                <option value="all">All Subsites</option>
+                {subsiteOptions.map((subsite) => (
+                  <option key={subsite.id} value={String(subsite.id)}>
+                    {subsite.hmsDisplayName || subsite.hmsName || `Subsite ${subsite.id}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <label className="min-w-[160px]">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">City</span>
+            <select
+              value={selectedCity}
+              onChange={(event) => setSelectedCity(event.target.value)}
+              className="h-10 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs font-semibold tracking-wide text-slate-200 outline-none"
+            >
+              <option value="all">All Cities</option>
+              {cityOptions.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="min-w-[160px]">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Property Type</span>
+            <select
+              value={selectedPropertyType}
+              onChange={(event) => setSelectedPropertyType(event.target.value)}
+              disabled={Boolean(lockedPropertyType)}
+              className="h-10 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs font-semibold tracking-wide text-slate-200 outline-none"
+            >
+              {lockedPropertyType ? (
+                <option value={lockedPropertyType}>{lockedPropertyType === "lodge" ? "Hostel/Lodge" : lockedPropertyType.toUpperCase()}</option>
+              ) : (
+                <>
+                  <option value="all">All Types</option>
+                  {propertyTypeOptions.map((type) => (
+                    <option key={type} value={type}>{type === "lodge" ? "Hostel/Lodge" : type.toUpperCase()}</option>
+                  ))}
+                </>
+              )}
+            </select>
+          </label>
+          <label className="min-w-[180px]">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Building</span>
+            <select
+              value={selectedBuilding}
+              onChange={(event) => setSelectedBuilding(event.target.value)}
+              className="h-10 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs font-semibold tracking-wide text-slate-200 outline-none"
+            >
+              <option value="all">All Buildings</option>
+              {buildingOptions.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </label>
           <button
             type="button"
             onClick={() => refetch()}
@@ -329,6 +663,13 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
             Refresh
           </button>
         </div>
+      </div>
+
+      <div className="-mt-2 mb-4 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.12em] text-slate-400">
+        {isMainSiteHost ? <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2.5 py-1">{selectedSubsiteLabel}</span> : null}
+        <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2.5 py-1">{selectedCityLabel}</span>
+        <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2.5 py-1">{selectedPropertyTypeLabel}</span>
+        <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2.5 py-1">{selectedBuildingLabel}</span>
       </div>
 
       <div className="mb-6 flex flex-wrap gap-2">

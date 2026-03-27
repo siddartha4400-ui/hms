@@ -269,7 +269,7 @@ export default function ThemedDatePicker({
 
       {open && !disabled ? (
         <div
-          className="absolute z-[80] mt-2 left-0 w-full min-w-[280px] rounded-xl border p-3 shadow-2xl calendar-popover"
+          className="absolute z-[80] mt-2 left-0 w-[min(300px,calc(100vw-2rem))] rounded-xl border p-3 shadow-2xl calendar-popover"
           style={{
             background: "var(--bg-surface)",
             borderColor: "var(--border)",

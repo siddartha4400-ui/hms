@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@apollo/client/react';
-import { FiBookOpen, FiGrid, FiHome, FiLayers, FiMap, FiMenu, FiX } from 'react-icons/fi';
+import { FiArrowLeft, FiBookOpen, FiGrid, FiHome, FiLayers, FiMap, FiMenu, FiX } from 'react-icons/fi';
 import Link from 'next/link';
 import ThemeToggle from './ThemeToggle';
 import { GET_USER_PROFILE_QUERY } from '@/project_components/common-routes/graphql/operations';
+import { LIST_HMS_QUERY } from '@/project_components/subsites/graphql/operations';
 import { LOGOUT_MUTATION } from '@/project_components/login/graphql/operations';
 import {
   PROFILE_AVATAR_UPDATED_EVENT,
@@ -18,6 +19,7 @@ import {
   AUTH_CHANGED_EVENT,
   clearStoredSession,
   getValidAuthToken,
+  getUserHmsId,
   getUserRole,
 } from '@/lib/auth-token';
 
@@ -30,7 +32,43 @@ interface HeaderProfileData {
   };
 }
 
+type HmsAccessItem = {
+  id: number;
+  hmsName?: string | null;
+};
+
+type HmsAccessData = {
+  subsiteBaseDomain?: string | null;
+  listHms?: HmsAccessItem[] | null;
+};
 type NavLink = { label: string; href: string; icon: React.ReactNode };
+
+function resolveHostSubsiteKey(hostName: string, baseDomain: string): string | null {
+  const host = (hostName || '').trim().toLowerCase();
+  if (!host || host === 'localhost' || host === '127.0.0.1') {
+    return null;
+  }
+
+  if (baseDomain && host.endsWith(`.${baseDomain}`)) {
+    const leftPart = host.slice(0, -(`.${baseDomain}`).length);
+    const candidate = leftPart.split('.')[0]?.trim().toLowerCase();
+    if (!candidate || candidate === 'www' || candidate === 'backend') {
+      return null;
+    }
+    return candidate;
+  }
+
+  const parts = host.split('.').filter(Boolean);
+  if (parts.length >= 3) {
+    const candidate = parts[0]?.trim().toLowerCase();
+    if (!candidate || candidate === 'www' || candidate === 'backend') {
+      return null;
+    }
+    return candidate;
+  }
+
+  return null;
+}
 
 function buildNavLinks(role: string | null, authed: boolean): NavLink[] {
   const home: NavLink = { label: 'Home', href: '/', icon: <FiHome className="h-3.5 w-3.5" /> };
@@ -92,6 +130,10 @@ export default function Header() {
   const { data } = useQuery<HeaderProfileData>(GET_USER_PROFILE_QUERY, {
     skip: !isAuthenticated,
   });
+  const { data: hmsAccessData, loading: hmsAccessLoading } = useQuery<HmsAccessData>(LIST_HMS_QUERY, {
+    skip: !isAuthenticated,
+    fetchPolicy: 'cache-first',
+  });
 
   useEffect(() => {
     const profile = data?.getUserProfile;
@@ -123,7 +165,48 @@ export default function Header() {
     router.replace('/');
   }, [logoutMutation, router]);
 
-  const navLinks = buildNavLinks(userRole, isAuthenticated);
+  const navLinks = useMemo(() => {
+    const links = buildNavLinks(userRole, isAuthenticated);
+    const isSubsiteScopedAdmin = userRole === 'site_admin' || userRole === 'site_building_manager';
+
+    if (!isAuthenticated || !isSubsiteScopedAdmin) {
+      return links;
+    }
+
+    if (typeof window === 'undefined') {
+      return links;
+    }
+
+    const hostName = window.location.hostname.toLowerCase();
+    const baseDomain = (hmsAccessData?.subsiteBaseDomain || '').trim().toLowerCase();
+    const isMainSiteHost = baseDomain
+      ? hostName === baseDomain || hostName === `www.${baseDomain}`
+      : hostName === 'hms.local' || hostName === 'www.hms.local';
+
+    if (isMainSiteHost) {
+      return links;
+    }
+
+    const subsiteKey = resolveHostSubsiteKey(hostName, baseDomain);
+    const matchedSubsite = (hmsAccessData?.listHms || []).find((item) => (item.hmsName || '').toLowerCase() === subsiteKey);
+    const userHmsId = getUserHmsId();
+    const canAccessDashboard = Boolean(matchedSubsite && userHmsId && matchedSubsite.id === userHmsId);
+
+    if (hmsAccessLoading || !canAccessDashboard) {
+      return links.filter((link) => link.href !== '/dashboard');
+    }
+
+    return links;
+  }, [hmsAccessData, hmsAccessLoading, isAuthenticated, userRole]);
+  const showBackButton = pathname !== '/';
+
+  const handleBack = useCallback(() => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push('/');
+  }, [router]);
 
   const isActiveNav = useCallback(
     (href: string) => {
@@ -292,6 +375,23 @@ export default function Header() {
             </Link>
           )
         )}
+
+        {showBackButton ? (
+          <button
+            type="button"
+            onClick={handleBack}
+            className="h-8 md:h-9 px-2.5 rounded-lg inline-flex items-center justify-center gap-1.5 text-[10px] md:text-[11px] uppercase tracking-widest"
+            style={{
+              border: '1px solid var(--border)',
+              color: 'var(--text-secondary)',
+              background: 'var(--bg-input)',
+            }}
+            aria-label="Go back"
+          >
+            <FiArrowLeft className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Back</span>
+          </button>
+        ) : null}
       </div>
 
       {isAuthenticated && isMobileMenuOpen && navLinks.length > 0 ? (

@@ -35,13 +35,6 @@ export default function WalkinBookingsPage() {
   return (
     <div>
       <div className="mx-auto max-w-7xl px-6 pt-6">
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] no-underline mb-4"
-          style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-secondary)" }}
-        >
-          ← Dashboard
-        </Link>
         <div className="mb-4 rounded-2xl border px-4 py-3" style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
           <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--text-muted)" }}>
             Admin Walk-in Booking
@@ -58,7 +51,7 @@ export default function WalkinBookingsPage() {
           </Link>
         </div>
       </div>
-      <PublicBookingOrganism mode="admin" />
+      <PublicBookingOrganism mode="admin" hideDurationMode />
     </div>
   );
 }

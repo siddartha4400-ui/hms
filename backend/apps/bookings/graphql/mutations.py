@@ -31,6 +31,7 @@ class BookingType(graphene.ObjectType):
 	city_name = graphene.String()
 	building_id = graphene.Int()
 	building_name = graphene.String()
+	property_type = graphene.String()
 	room_id = graphene.Int()
 	room_number = graphene.String()
 	bed_id = graphene.Int()
@@ -186,6 +187,28 @@ class CheckInBookingMutation(graphene.Mutation):
 			return CheckInBookingMutation(success=False, message=str(exc), booking=None)
 
 
+class ExpirePendingBookingsMutation(graphene.Mutation):
+	class Arguments:
+		hms_id = graphene.Int()
+
+	success = graphene.Boolean()
+	message = graphene.String()
+	updated_count = graphene.Int()
+
+	@staticmethod
+	def mutate(root, info, hms_id=None):
+		actor = info.context.user if info.context.user and info.context.user.is_authenticated else None
+		try:
+			updated_count = BookingService.expire_pending_bookings(actor=actor, hms_id=hms_id)
+			return ExpirePendingBookingsMutation(
+				success=True,
+				message=f"Updated {updated_count} expired pending booking(s) to cancelled",
+				updated_count=updated_count,
+			)
+		except ApiException as exc:
+			return ExpirePendingBookingsMutation(success=False, message=str(exc), updated_count=0)
+
+
 class Mutation(graphene.ObjectType):
 	create_booking = CreateBookingMutation.Field()
 	approve_booking = ApproveBookingMutation.Field()
@@ -193,3 +216,4 @@ class Mutation(graphene.ObjectType):
 	cancel_booking = CancelBookingMutation.Field()
 	complete_booking = CompleteBookingMutation.Field()
 	check_in_booking = CheckInBookingMutation.Field()
+	expire_pending_bookings = ExpirePendingBookingsMutation.Field()

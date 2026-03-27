@@ -133,6 +133,7 @@ class BookingService:
 			"city_name": booking.city.city_name if booking.city else "",
 			"building_id": booking.building_id,
 			"building_name": booking.building.name if booking.building else "",
+			"property_type": booking.building.property_type if booking.building else "",
 			"room_id": booking.room_id,
 			"room_number": booking.room.room_number if booking.room else "",
 			"bed_id": booking.bed_id,
@@ -190,6 +191,21 @@ class BookingService:
 			queryset = queryset.filter(Q(status="completed") | Q(status="confirmed", check_out__lte=today))
 
 		return [BookingService._serialize_booking(item) for item in queryset]
+
+	@staticmethod
+	@transaction.atomic
+	def expire_pending_bookings(*, actor=None, hms_id=None, allow_system: bool = False):
+		if not allow_system and not BookingService._has_any_group(actor, {"root_admin"}):
+			raise ApiException("Only root admin can run pending expiry sync", status_code=403)
+
+		normalized_hms_id = BookingService._normalize_company_id(hms_id)
+		today = timezone.now().date()
+
+		queryset = BookingRepository.list_bookings(hms_id=normalized_hms_id).filter(
+			status="pending",
+			check_in__lt=today,
+		)
+		return queryset.update(status="cancelled")
 
 	@staticmethod
 	@transaction.atomic

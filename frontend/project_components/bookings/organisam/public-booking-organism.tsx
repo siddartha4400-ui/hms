@@ -240,9 +240,10 @@ function areGuestListsEqual(left: BookingGuest[], right: BookingGuest[]): boolea
 type PublicBookingOrganismProps = {
   mode?: "public" | "admin";
   defaultStayDurationMode?: StayDurationMode;
+  hideDurationMode?: boolean;
 };
 
-export default function PublicBookingOrganism({ mode = "public", defaultStayDurationMode = "short_period" }: PublicBookingOrganismProps) {
+export default function PublicBookingOrganism({ mode = "public", defaultStayDurationMode = "short_period", hideDurationMode = false }: PublicBookingOrganismProps) {
   const today = useMemo(() => formatDateInput(new Date()), []);
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const [cityId, setCityId] = useState<number | "">("");
@@ -941,6 +942,7 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
                   <p className="text-xs" style={subtleTextStyle}>Auto-selected from subsite type.</p>
                 ) : null}
               </label>
+              {!hideDurationMode && (
               <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                 Duration mode
                 <ThemedSelect
@@ -952,6 +954,7 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
                   ]}
                 />
               </label>
+              )}
               <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                 Room type
                 <ThemedSelect

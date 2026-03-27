@@ -171,6 +171,16 @@ export const CHECK_IN_BOOKING_MUTATION = gql`
   }
 `;
 
+export const EXPIRE_PENDING_BOOKINGS_MUTATION = gql`
+  mutation ExpirePendingBookings($hmsId: Int) {
+    expirePendingBookings(hmsId: $hmsId) {
+      success
+      message
+      updatedCount
+    }
+  }
+`;
+
 export const LIST_BOOKINGS_QUERY = gql`
   query ListBookings($view: String!, $mine: Boolean, $hmsId: Int) {
     listBookings(view: $view, mine: $mine, hmsId: $hmsId) {
@@ -183,6 +193,7 @@ export const LIST_BOOKINGS_QUERY = gql`
       hmsDisplayName
       cityName
       buildingName
+      propertyType
       roomNumber
       bedNumber
       checkIn

@@ -57,7 +57,22 @@ export function getUserRole(): string | null {
   if (typeof window === 'undefined') {
     return null;
   }
-  return localStorage.getItem(USER_ROLE_KEY);
+
+  const storedRole = localStorage.getItem(USER_ROLE_KEY);
+  if (!storedRole) {
+    return null;
+  }
+
+  const hostname = window.location.hostname.toLowerCase();
+  const isMainSiteHost = hostname === 'hms.local' || hostname === 'www.hms.local';
+  const isSubsiteScopedAdmin = storedRole === 'site_admin' || storedRole === 'site_building_manager';
+
+  // On the main portal, subsite-scoped admins should behave like normal users.
+  if (isMainSiteHost && isSubsiteScopedAdmin) {
+    return 'normal_user';
+  }
+
+  return storedRole;
 }
 
 export function getValidAuthToken(): string | null {

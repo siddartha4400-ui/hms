@@ -6,6 +6,11 @@ from common.exceptions import ApiException
 
 class PropertyService:
     @staticmethod
+    def _expected_property_type_for_company(company):
+        expected_property_type = PropertyValidator.validate_property_type(company.get_hms_type_display().lower())
+        return expected_property_type
+
+    @staticmethod
     def _sync_room_beds_from_capacity(room, target_capacity: int, actor=None):
         target_capacity = max(int(target_capacity or 0), 0)
         existing_beds = list(room.beds.order_by("id"))
@@ -183,9 +188,21 @@ class PropertyService:
         if not company:
             raise ApiException("company_id does not exist")
 
+        expected_property_type = PropertyService._expected_property_type_for_company(company)
+
         city = PropertyRepository.get_city(city_id)
         if not city:
             raise ApiException("city_id does not exist")
+
+        requested_property_type = payload.get("property_type")
+        if requested_property_type is None:
+            resolved_property_type = expected_property_type
+        else:
+            resolved_property_type = PropertyValidator.validate_property_type(requested_property_type)
+            if resolved_property_type != expected_property_type:
+                raise ApiException(
+                    f"property_type must be '{expected_property_type}' for this subsite"
+                )
 
         building = PropertyRepository.create_building(
             company=company,
@@ -194,7 +211,7 @@ class PropertyService:
             location=(payload.get("location") or "").strip(),
             latitude=payload.get("latitude"),
             longitude=payload.get("longitude"),
-            property_type=PropertyValidator.validate_property_type(payload.get("property_type") or company.get_hms_type_display().lower()),
+            property_type=resolved_property_type,
             is_active=payload.get("is_active", True),
             created_by=actor,
             updated_by=actor,
@@ -228,7 +245,13 @@ class PropertyService:
         if "longitude" in payload and payload.get("longitude") is not None:
             update_data["longitude"] = payload.get("longitude")
         if "property_type" in payload and payload.get("property_type") is not None:
-            update_data["property_type"] = PropertyValidator.validate_property_type(payload.get("property_type"))
+            expected_property_type = PropertyService._expected_property_type_for_company(building.company)
+            requested_property_type = PropertyValidator.validate_property_type(payload.get("property_type"))
+            if requested_property_type != expected_property_type:
+                raise ApiException(
+                    f"property_type must be '{expected_property_type}' for this subsite"
+                )
+            update_data["property_type"] = requested_property_type
         if "is_active" in payload and payload.get("is_active") is not None:
             update_data["is_active"] = payload.get("is_active")
         update_data["updated_by"] = actor

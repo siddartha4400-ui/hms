@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { InputBox, PopupToast, ReusableConfirmModal, ReusableFormModal } from '@/components';
 import { FiEdit2, FiMapPin, FiPlus, FiSquare, FiTrash2 } from 'react-icons/fi';
-import { getUserRole } from '@/lib/auth-token';
+import { getUserHmsId, getUserRole } from '@/lib/auth-token';
 import { LIST_HMS_QUERY } from '@/project_components/subsites/graphql/operations';
 import {
   CREATE_BED_MUTATION,
@@ -80,6 +80,22 @@ const getMutationResult = (data: unknown): Result | null => {
     success: maybeResult.success,
     message: typeof maybeResult.message === 'string' ? maybeResult.message : undefined,
   };
+};
+
+const propertyTypeFromHmsType = (hmsType?: string | number | null): 'pg' | 'lodge' | null => {
+  if (hmsType === null || hmsType === undefined) {
+    return null;
+  }
+
+  const normalized = String(hmsType).trim().toLowerCase();
+  if (normalized === '2' || normalized === 'pg') {
+    return 'pg';
+  }
+  if (normalized === '1' || normalized === 'lodge') {
+    return 'lodge';
+  }
+
+  return null;
 };
 
 export default function SubsiteDashboardOrganism() {
@@ -317,7 +333,7 @@ export default function SubsiteDashboardOrganism() {
           cityId: selectedCityId,
           name: buildingForm.name.trim(),
           location: buildingForm.location.trim() || null,
-          propertyType: buildingForm.propertyType,
+          propertyType: subsitePropertyType || buildingForm.propertyType,
           isActive: true,
         },
       });
@@ -334,7 +350,7 @@ export default function SubsiteDashboardOrganism() {
         setSelectedBuildingId(newBuildingId);
         resetLevelsBelow('building');
       }
-      setBuildingForm({ name: '', location: '', propertyType: 'pg' });
+      setBuildingForm({ name: '', location: '', propertyType: subsitePropertyType || 'pg' });
       setIsBuildingModalOpen(false);
       setMessage(payload.message || 'Building created');
     } catch (e) {
@@ -396,7 +412,7 @@ export default function SubsiteDashboardOrganism() {
     setBuildingForm({
       name: building.name,
       location: building.location || '',
-      propertyType: building.propertyType || 'pg',
+      propertyType: subsitePropertyType || building.propertyType || 'pg',
     });
     setIsBuildingModalOpen(true);
   };
@@ -418,7 +434,7 @@ export default function SubsiteDashboardOrganism() {
           buildingId: buildingToEdit.id,
           name: buildingForm.name.trim(),
           location: buildingForm.location.trim() || null,
-          propertyType: buildingForm.propertyType,
+          propertyType: subsitePropertyType || buildingForm.propertyType,
         },
       });
 
@@ -431,7 +447,7 @@ export default function SubsiteDashboardOrganism() {
       await refetchBuildings();
       setIsBuildingModalOpen(false);
       setBuildingToEdit(null);
-      setBuildingForm({ name: '', location: '', propertyType: 'pg' });
+      setBuildingForm({ name: '', location: '', propertyType: subsitePropertyType || 'pg' });
       setMessage(payload.message || 'Building updated');
     } catch (e) {
       showError(e);
@@ -755,9 +771,14 @@ export default function SubsiteDashboardOrganism() {
   const selectedBuilding = allBuildings.find((item) => item.id === selectedBuildingId);
   const isBedSupported = selectedBuilding?.propertyType === 'pg';
   const selectedSubsite = (hmsData?.listHms || []).find((item) => item.id === selectedSubsiteId);
-  const availableSubsites = hmsData?.listHms || [];
-  const isSingleUserSubsite = availableSubsites.length === 1 && userRole === 'site_admin';
-  const isSubsiteAutoLocked = isSingleUserSubsite || (querySubsiteId && selectedSubsiteId === querySubsiteId);
+  const subsitePropertyType = propertyTypeFromHmsType(selectedSubsite?.hmsType);
+  const allSubsites = hmsData?.listHms || [];
+  const lockedHmsId = (userRole === 'site_admin' || userRole === 'site_building_manager') ? getUserHmsId() : null;
+  const availableSubsites = lockedHmsId
+    ? allSubsites.filter((s) => s.id === lockedHmsId)
+    : allSubsites;
+  const isSingleUserSubsite = availableSubsites.length === 1 && (userRole === 'site_admin' || userRole === 'site_building_manager');
+  const isSubsiteAutoLocked = isSingleUserSubsite || Boolean(lockedHmsId) || (querySubsiteId != null && selectedSubsiteId === querySubsiteId);
   const hideCityAndBuildingActions = isSubsiteAutoLocked || userRole === 'site_admin';
 
   React.useEffect(() => {
@@ -766,10 +787,23 @@ export default function SubsiteDashboardOrganism() {
     }
 
     const subsites = hmsData?.listHms || [];
-    const singleSubsite = subsites.length === 1;
+    if (subsites.length === 0) {
+      return;
+    }
 
-    // If only 1 subsite available (site_admin case), auto-select it
-    if (singleSubsite && subsites[0]) {
+    // Lock to admin's own subsite if applicable
+    if (lockedHmsId) {
+      const exists = subsites.some((item) => item.id === lockedHmsId);
+      if (exists) {
+        setSelectedSubsiteId(lockedHmsId);
+        resetLevelsBelow('subsite');
+        setHasAppliedQuerySubsite(true);
+      }
+      return;
+    }
+
+    // If only 1 subsite available, auto-select it
+    if (subsites.length === 1 && subsites[0]) {
       setSelectedSubsiteId(subsites[0].id);
       resetLevelsBelow('subsite');
       setHasAppliedQuerySubsite(true);
@@ -789,7 +823,7 @@ export default function SubsiteDashboardOrganism() {
     setSelectedSubsiteId(querySubsiteId);
     resetLevelsBelow('subsite');
     setHasAppliedQuerySubsite(true);
-  }, [hasAppliedQuerySubsite, hmsData, querySubsiteId]);
+  }, [hasAppliedQuerySubsite, hmsData, lockedHmsId, querySubsiteId]);
 
   React.useEffect(() => {
     if (selectedBuilding && selectedBuilding.propertyType !== 'pg') {
@@ -914,7 +948,7 @@ export default function SubsiteDashboardOrganism() {
                   disabled={buildingTab !== 'active'}
                   onClick={() => {
                     setBuildingToEdit(null);
-                    setBuildingForm({ name: '', location: '', propertyType: 'pg' });
+                    setBuildingForm({ name: '', location: '', propertyType: subsitePropertyType || 'pg' });
                     setIsBuildingModalOpen(true);
                   }}
                   className="h-10 px-3 rounded-xl inline-flex items-center justify-center gap-2"
@@ -1265,7 +1299,7 @@ export default function SubsiteDashboardOrganism() {
         onClose={() => {
           setIsBuildingModalOpen(false);
           setBuildingToEdit(null);
-          setBuildingForm({ name: '', location: '', propertyType: 'pg' });
+          setBuildingForm({ name: '', location: '', propertyType: subsitePropertyType || 'pg' });
         }}
         onSave={onSaveBuilding}
         saveLabel="Save"
@@ -1274,10 +1308,17 @@ export default function SubsiteDashboardOrganism() {
         <InputBox placeholder="Building name *" value={buildingForm.name} onChange={(e) => setBuildingForm((p) => ({ ...p, name: e.target.value }))} />
         <InputBox placeholder="GPS location / map link" value={buildingForm.location} onChange={(e) => setBuildingForm((p) => ({ ...p, location: e.target.value }))} />
         <select
-          value={buildingForm.propertyType}
+          value={subsitePropertyType || buildingForm.propertyType}
           onChange={(e) => setBuildingForm((p) => ({ ...p, propertyType: e.target.value }))}
+          disabled={Boolean(subsitePropertyType)}
           className="h-12 rounded-xl px-3 w-full"
-          style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+          style={{
+            background: 'var(--bg-input)',
+            border: '1px solid var(--border)',
+            color: 'var(--text-primary)',
+            opacity: subsitePropertyType ? 0.8 : 1,
+            cursor: subsitePropertyType ? 'not-allowed' : 'pointer',
+          }}
         >
           <option value="pg">PG</option>
           <option value="lodge">Lodge</option>

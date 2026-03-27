@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useQuery } from '@apollo/client/react';
+import { useMutation, useQuery } from '@apollo/client/react';
 import Link from 'next/link';
-import { FiActivity, FiBookOpen, FiCalendar, FiDollarSign, FiLayers, FiMap, FiMoon, FiUserPlus } from 'react-icons/fi';
+import { FiBookOpen, FiCalendar, FiFileText, FiHome, FiLayers, FiLogIn, FiMapPin, FiMoon } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
-import { getUserRole, getValidAuthToken } from '@/lib/auth-token';
+import { getUserHmsId, getUserRole, getValidAuthToken } from '@/lib/auth-token';
 import { GET_AVAILABLE_ROUTES_QUERY } from '@/project_components/common-routes/graphql/operations';
+import { EXPIRE_PENDING_BOOKINGS_MUTATION } from '@/project_components/bookings/graphql/operations';
+import { LIST_HMS_QUERY } from '@/project_components/subsites/graphql/operations';
 
 type AvailableRoute = {
   path?: string | null;
@@ -19,11 +21,56 @@ type AvailableRoutesResponse = {
   getAvailableRoutes?: AvailableRoute[] | null;
 };
 
+type ExpirePendingBookingsResponse = {
+  expirePendingBookings?: {
+    success?: boolean | null;
+    message?: string | null;
+    updatedCount?: number | null;
+  } | null;
+};
+
 type DashboardTile = {
   title: string;
   href: string;
   icon: React.ReactNode;
 };
+
+type HmsListItem = {
+  id: number;
+  hmsName: string;
+};
+
+type HmsListResponse = {
+  subsiteBaseDomain?: string | null;
+  listHms?: HmsListItem[] | null;
+};
+
+function resolveHostSubsiteKey(hostName: string, baseDomain: string): string | null {
+  const host = (hostName || '').trim().toLowerCase();
+  if (!host || host === 'localhost' || host === '127.0.0.1') {
+    return null;
+  }
+
+  if (baseDomain && host.endsWith(`.${baseDomain}`)) {
+    const leftPart = host.slice(0, -(`.${baseDomain}`).length);
+    const candidate = leftPart.split('.')[0]?.trim().toLowerCase();
+    if (!candidate || candidate === 'www' || candidate === 'backend') {
+      return null;
+    }
+    return candidate;
+  }
+
+  const parts = host.split('.').filter(Boolean);
+  if (parts.length >= 3) {
+    const candidate = parts[0]?.trim().toLowerCase();
+    if (!candidate || candidate === 'www' || candidate === 'backend') {
+      return null;
+    }
+    return candidate;
+  }
+
+  return null;
+}
 
 export default function DashboardOrganism() {
   const router = useRouter();
@@ -31,10 +78,17 @@ export default function DashboardOrganism() {
   // The token check runs in useEffect (client-only) and flips isLoading to false.
   const [isLoading, setIsLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
+  const [syncMessage, setSyncMessage] = useState('');
+  const [syncError, setSyncError] = useState('');
   const { data: routesData } = useQuery<AvailableRoutesResponse>(GET_AVAILABLE_ROUTES_QUERY, {
     skip: isLoading,
     fetchPolicy: 'cache-first',
   });
+  const { data: hmsData, loading: hmsLoading } = useQuery<HmsListResponse>(LIST_HMS_QUERY, {
+    skip: isLoading,
+    fetchPolicy: 'cache-first',
+  });
+  const [expirePendingBookings, { loading: expiringPending }] = useMutation<ExpirePendingBookingsResponse>(EXPIRE_PENDING_BOOKINGS_MUTATION);
 
   useEffect(() => {
     const token = getValidAuthToken();
@@ -47,6 +101,37 @@ export default function DashboardOrganism() {
 
     setIsLoading(false);
   }, [router]);
+
+  const availableRoutes = routesData?.getAvailableRoutes || [];
+  const storedHmsId = getUserHmsId();
+  const isSubsiteScopedAdmin = role === 'site_admin' || role === 'site_building_manager';
+  const hostName = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
+  const baseDomain = (hmsData?.subsiteBaseDomain || '').trim().toLowerCase();
+  const isMainSiteHost = baseDomain
+    ? hostName === baseDomain || hostName === `www.${baseDomain}`
+    : hostName === 'hms.local' || hostName === 'www.hms.local';
+  const hostSubsiteKey = resolveHostSubsiteKey(hostName, baseDomain);
+
+  let isCrossSubsiteAdmin = false;
+  if (isSubsiteScopedAdmin && !isMainSiteHost) {
+    const matchedSubsite = (hmsData?.listHms || []).find((item) => (item.hmsName || '').toLowerCase() === hostSubsiteKey);
+    if (!matchedSubsite || !storedHmsId || matchedSubsite.id !== storedHmsId) {
+      isCrossSubsiteAdmin = true;
+    }
+  }
+
+  const effectiveRole = isCrossSubsiteAdmin ? 'normal_user' : role;
+  const canAccessAdminDashboard = effectiveRole === 'root_admin' || effectiveRole === 'site_admin' || effectiveRole === 'site_building_manager';
+
+  useEffect(() => {
+    if (isLoading || hmsLoading) {
+      return;
+    }
+
+    if (!canAccessAdminDashboard) {
+      router.replace('/');
+    }
+  }, [canAccessAdminDashboard, hmsLoading, isLoading, router]);
 
   if (isLoading) {
     return (
@@ -64,30 +149,39 @@ export default function DashboardOrganism() {
     );
   }
 
-  const availableRoutes = routesData?.getAvailableRoutes || [];
-  const canAccessAdminDashboard = role === 'root_admin' || role === 'site_admin' || role === 'site_building_manager';
+  async function runPendingExpirySync() {
+    setSyncMessage('');
+    setSyncError('');
+    try {
+      const response = await expirePendingBookings();
+      const payload = response.data?.expirePendingBookings;
+      if (!payload?.success) {
+        setSyncError(payload?.message || 'Unable to run pending expiry sync.');
+        return;
+      }
+      setSyncMessage(payload.message || 'Pending expiry sync completed.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to run pending expiry sync.';
+      setSyncError(message);
+    }
+  }
 
   const tiles: DashboardTile[] = [];
 
   if (canAccessAdminDashboard) {
     if (role === 'root_admin' || role === 'site_admin' || role === 'site_building_manager') {
       tiles.push({
-        title: 'Walk-in Bookings',
+        title: 'Walk-in Check-ins',
         href: '/dashboard/walkin-bookings',
-        icon: <FiUserPlus className="h-3 w-3 sm:h-4 sm:w-4" />,
+        icon: <FiLogIn className="h-3 w-3 sm:h-4 sm:w-4" />,
       });
     }
 
     if (role === 'root_admin' || role === 'site_admin' || role === 'site_building_manager') {
       tiles.push({
-        title: 'Short-Stay Console',
+        title: 'Booking Operations',
         href: '/dashboard/bookings',
         icon: <FiBookOpen className="h-3 w-3 sm:h-4 sm:w-4" />,
-      });
-      tiles.push({
-        title: 'Overstay Monitor',
-        href: '/dashboard/overstay-bookings',
-        icon: <FiActivity className="h-3 w-3 sm:h-4 sm:w-4" />,
       });
       tiles.push({
         title: 'Monthly Stay',
@@ -95,30 +189,30 @@ export default function DashboardOrganism() {
         icon: <FiMoon className="h-3 w-3 sm:h-4 sm:w-4" />,
       });
       tiles.push({
-        title: 'Monthly Console',
+        title: 'Monthly Bookings',
         href: '/dashboard/monthly-stay-console',
         icon: <FiCalendar className="h-3 w-3 sm:h-4 sm:w-4" />,
       });
       tiles.push({
-        title: 'Income',
+        title: 'Invoices',
         href: '/dashboard/income',
-        icon: <FiDollarSign className="h-3 w-3 sm:h-4 sm:w-4" />,
+        icon: <FiFileText className="h-3 w-3 sm:h-4 sm:w-4" />,
       });
     }
 
     if (role === 'root_admin' || role === 'site_admin' || role === 'site_building_manager') {
       tiles.push({
-        title: 'Subsite Dashboard',
+        title: 'Buildings & Beds',
         href: '/dashboard/subsite-dashboard',
-        icon: <FiMap className="h-3 w-3 sm:h-4 sm:w-4" />,
+        icon: <FiHome className="h-3 w-3 sm:h-4 sm:w-4" />,
       });
     }
 
     if (role === 'root_admin' || availableRoutes.some((route) => route.visible && route.path === '/subsites')) {
       tiles.push({
-        title: 'Manage Subsites',
+        title: 'Subsites Management',
         href: '/subsites',
-        icon: <FiLayers className="h-3 w-3 sm:h-4 sm:w-4" />,
+        icon: <FiMapPin className="h-3 w-3 sm:h-4 sm:w-4" />,
       });
     }
   }
@@ -137,6 +231,34 @@ export default function DashboardOrganism() {
             <p className="mt-1 text-[11px] leading-snug md:mt-2 md:text-sm" style={{ color: 'var(--text-secondary)' }}>
               Tile access is loaded from your permissions.
             </p>
+            {role === 'root_admin' ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void runPendingExpirySync()}
+                  disabled={expiringPending}
+                  className="rounded-lg px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] md:text-xs"
+                  style={{
+                    background: 'var(--action-dim)',
+                    border: '1px solid var(--action-border)',
+                    color: 'var(--action-light)',
+                    opacity: expiringPending ? 0.7 : 1,
+                  }}
+                >
+                  {expiringPending ? 'Running...' : 'Run Pending Expiry Sync'}
+                </button>
+                {syncMessage ? (
+                  <span className="text-[10px] md:text-xs" style={{ color: 'var(--positive)' }}>
+                    {syncMessage}
+                  </span>
+                ) : null}
+                {syncError ? (
+                  <span className="text-[10px] md:text-xs" style={{ color: 'var(--danger)' }}>
+                    {syncError}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-3 grid grid-cols-3 gap-1 sm:mt-6 sm:gap-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
@@ -154,7 +276,7 @@ export default function DashboardOrganism() {
                   >
                     {tile.icon}
                   </div>
-                  <p className="text-[7.5px] font-semibold uppercase leading-tight tracking-tight sm:text-[10px] sm:tracking-[0.08em]" style={{ textDecoration: 'none' }}>{tile.title}</p>
+                  <p className="text-[8px] font-semibold leading-tight sm:text-[10.5px]" style={{ textDecoration: 'none' }}>{tile.title}</p>
                 </div>
               </Link>
             ))}

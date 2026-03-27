@@ -53,6 +53,7 @@ class BookingType(graphene.ObjectType):
 	city_name = graphene.String()
 	building_id = graphene.Int()
 	building_name = graphene.String()
+	property_type = graphene.String()
 	room_id = graphene.Int()
 	room_number = graphene.String()
 	bed_id = graphene.Int()

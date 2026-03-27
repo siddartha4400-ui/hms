@@ -197,3 +197,25 @@ class BookingServiceTests(TestCase):
         mine_items = BookingService.list_bookings(view="upcoming", mine=True, actor=self.customer)
         self.assertEqual(len(mine_items), 1)
         self.assertTrue(mine_items[0]["created_at_utc"].endswith("+00:00"))
+
+    def test_expire_pending_bookings_cancels_only_crossed_pending_requests(self):
+        today = date.today()
+        expired_pending = self._create_booking(
+            check_in=today - timedelta(days=2),
+            check_out=today + timedelta(days=1),
+            status="pending",
+        )
+        active_pending = self._create_booking(
+            check_in=today,
+            check_out=today + timedelta(days=2),
+            status="pending",
+        )
+
+        updated_count = BookingService.expire_pending_bookings(allow_system=True)
+
+        expired_pending.refresh_from_db()
+        active_pending.refresh_from_db()
+
+        self.assertEqual(updated_count, 1)
+        self.assertEqual(expired_pending.status, "cancelled")
+        self.assertEqual(active_pending.status, "pending")

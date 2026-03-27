@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import AdminBookingsOrganism from "@/project_components/bookings/organisam/admin-bookings-organism";
@@ -34,15 +33,6 @@ export default function MonthlyStayConsolePage() {
 
   return (
     <div>
-      <div className="mx-auto max-w-7xl px-6 pt-6">
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] no-underline mb-4"
-          style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-secondary)" }}
-        >
-          ← Dashboard
-        </Link>
-      </div>
       <AdminBookingsOrganism monthlyOnly initialTab="pending" />
     </div>
   );
