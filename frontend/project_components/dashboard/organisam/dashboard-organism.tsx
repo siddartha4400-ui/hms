@@ -74,7 +74,7 @@ export default function DashboardOrganism() {
       tiles.push({
         title: 'Walk-in Bookings',
         href: '/dashboard/walkin-bookings',
-        icon: <FiUserPlus className="h-4 w-4" />,
+        icon: <FiUserPlus className="h-3 w-3 sm:h-4 sm:w-4" />,
       });
     }
 
@@ -82,27 +82,27 @@ export default function DashboardOrganism() {
       tiles.push({
         title: 'Short-Stay Console',
         href: '/dashboard/bookings',
-        icon: <FiBookOpen className="h-4 w-4" />,
+        icon: <FiBookOpen className="h-3 w-3 sm:h-4 sm:w-4" />,
       });
       tiles.push({
         title: 'Overstay Monitor',
         href: '/dashboard/overstay-bookings',
-        icon: <FiActivity className="h-4 w-4" />,
+        icon: <FiActivity className="h-3 w-3 sm:h-4 sm:w-4" />,
       });
       tiles.push({
         title: 'Monthly Stay',
         href: '/dashboard/monthly-stay-bookings',
-        icon: <FiMoon className="h-4 w-4" />,
+        icon: <FiMoon className="h-3 w-3 sm:h-4 sm:w-4" />,
       });
       tiles.push({
         title: 'Monthly Console',
         href: '/dashboard/monthly-stay-console',
-        icon: <FiCalendar className="h-4 w-4" />,
+        icon: <FiCalendar className="h-3 w-3 sm:h-4 sm:w-4" />,
       });
       tiles.push({
         title: 'Income',
         href: '/dashboard/income',
-        icon: <FiDollarSign className="h-4 w-4" />,
+        icon: <FiDollarSign className="h-3 w-3 sm:h-4 sm:w-4" />,
       });
     }
 
@@ -110,7 +110,7 @@ export default function DashboardOrganism() {
       tiles.push({
         title: 'Subsite Dashboard',
         href: '/dashboard/subsite-dashboard',
-        icon: <FiMap className="h-4 w-4" />,
+        icon: <FiMap className="h-3 w-3 sm:h-4 sm:w-4" />,
       });
     }
 
@@ -118,7 +118,7 @@ export default function DashboardOrganism() {
       tiles.push({
         title: 'Manage Subsites',
         href: '/subsites',
-        icon: <FiLayers className="h-4 w-4" />,
+        icon: <FiLayers className="h-3 w-3 sm:h-4 sm:w-4" />,
       });
     }
   }
@@ -128,33 +128,33 @@ export default function DashboardOrganism() {
 
     return (
       <div className="min-h-screen" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-        <main className="mx-auto max-w-7xl px-6 py-8">
-          <div className="rounded-2xl border p-6" style={{ borderColor: 'var(--brand-border)', background: 'var(--brand-dim)' }}>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: 'var(--brand-light)' }}>
+        <main className="mx-auto max-w-7xl px-2 py-4 sm:px-4 md:px-6 md:py-8">
+          <div className="rounded-xl border p-3 md:rounded-2xl md:p-6" style={{ borderColor: 'var(--brand-border)', background: 'var(--brand-dim)' }}>
+            <p className="text-[9px] font-semibold uppercase tracking-[0.12em] md:text-xs md:tracking-[0.2em]" style={{ color: 'var(--brand-light)' }}>
               Permission Based Dashboard
             </p>
-            <h1 className="mt-2 text-3xl font-semibold">Property Operations Dashboard</h1>
-            <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Tile access is loaded from your current permissions. Extra options appear automatically when your account has access.
+            <h1 className="mt-1 text-base font-semibold leading-tight md:mt-2 md:text-3xl">Property Operations Dashboard</h1>
+            <p className="mt-1 text-[11px] leading-snug md:mt-2 md:text-sm" style={{ color: 'var(--text-secondary)' }}>
+              Tile access is loaded from your permissions.
             </p>
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-2">
+          <div className="mt-3 grid grid-cols-3 gap-1 sm:mt-6 sm:gap-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {uniqueTiles.map((tile) => (
               <Link
                 key={tile.title}
                 href={tile.href}
-                className="aspect-square rounded-xl border no-underline transition hover:opacity-90"
-                style={{ borderColor: 'var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', textDecoration: 'none', width: '7.2rem', height: '7.2rem' }}
+                className="aspect-square w-full rounded-lg border no-underline transition hover:opacity-90 sm:rounded-xl"
+                style={{ borderColor: 'var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', textDecoration: 'none' }}
               >
-                <div className="flex h-full flex-col items-center justify-center gap-2 p-2.5 text-center">
+                <div className="flex h-full flex-col items-center justify-center gap-0.5 p-1 text-center sm:gap-2 sm:p-2.5">
                   <div
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded sm:h-8 sm:w-8 sm:rounded-lg"
                     style={{ background: 'var(--brand-dim)', color: 'var(--brand)', border: '1px solid var(--brand-border)' }}
                   >
                     {tile.icon}
                   </div>
-                  <p className="text-[10px] font-semibold uppercase leading-tight tracking-[0.08em]" style={{ textDecoration: 'none' }}>{tile.title}</p>
+                  <p className="text-[7.5px] font-semibold uppercase leading-tight tracking-tight sm:text-[10px] sm:tracking-[0.08em]" style={{ textDecoration: 'none' }}>{tile.title}</p>
                 </div>
               </Link>
             ))}

@@ -20,7 +20,7 @@ export default function InputBox({
         </div>
       )}
       <input
-        className={`w-full h-12 leading-6 rounded-lg border focus:outline-none disabled:opacity-50 ${className}`.trim()}
+        className={`w-full h-12 leading-6 rounded-lg border text-base focus:outline-none disabled:opacity-50 md:text-sm ${className}`.trim()}
         style={{
           background: 'var(--bg-input)',
           borderColor: 'var(--border)',

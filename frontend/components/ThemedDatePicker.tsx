@@ -242,7 +242,7 @@ export default function ThemedDatePicker({
           }}
           onBlur={handleTypedInputBlur}
           placeholder={placeholder}
-          className="w-full h-full pl-16 pr-12 rounded-lg outline-none"
+          className="w-full h-full pl-16 pr-12 rounded-lg outline-none text-base md:text-sm"
           style={{
             background: "transparent",
             color: "var(--text-primary)",
@@ -269,18 +269,18 @@ export default function ThemedDatePicker({
 
       {open && !disabled ? (
         <div
-          className="absolute z-[80] mt-2 w-full min-w-[280px] rounded-xl border p-3 shadow-2xl calendar-popover sm:min-w-[320px]"
+          className="absolute z-[80] mt-2 left-0 w-full min-w-[280px] rounded-xl border p-3 shadow-2xl calendar-popover"
           style={{
             background: "var(--bg-surface)",
             borderColor: "var(--border)",
             boxShadow: "0 16px 36px rgba(0,0,0,0.35)",
           }}
         >
-          <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-[auto_1fr_1fr_auto] sm:items-center calendar-controls-row">
+          <div className="mb-2.5 flex items-center gap-1 calendar-controls-row">
             <button
               type="button"
               onClick={() => moveMonth(-1)}
-              className="h-9 w-full rounded-md flex items-center justify-center sm:h-8 sm:w-8"
+              className="h-8 w-8 shrink-0 rounded flex items-center justify-center"
               style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}
             >
               <FiChevronLeft className="w-4 h-4" />
@@ -289,7 +289,7 @@ export default function ThemedDatePicker({
             <select
               value={viewMonth}
               onChange={(e) => handleMonthSelect(Number(e.target.value))}
-              className="h-9 rounded-md px-2 text-xs outline-none calendar-select sm:h-8"
+              className="h-8 min-w-0 flex-1 rounded px-1.5 text-[10px] outline-none calendar-select"
               style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
             >
               {monthOptions.map((month, index) => (
@@ -302,7 +302,7 @@ export default function ThemedDatePicker({
             <select
               value={viewYear}
               onChange={(e) => handleYearSelect(Number(e.target.value))}
-              className="h-9 rounded-md px-2 text-xs outline-none calendar-select sm:h-8"
+              className="h-8 min-w-0 flex-1 rounded px-1.5 text-[10px] outline-none calendar-select"
               style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
             >
               {yearOptions.map((year) => (
@@ -315,7 +315,7 @@ export default function ThemedDatePicker({
             <button
               type="button"
               onClick={() => moveMonth(1)}
-              className="h-9 w-full rounded-md flex items-center justify-center sm:h-8 sm:w-8"
+              className="h-8 w-8 shrink-0 rounded flex items-center justify-center"
               style={{ border: "1px solid var(--border)", color: "var(--text-secondary)" }}
             >
               <FiChevronRight className="w-4 h-4" />
@@ -324,7 +324,7 @@ export default function ThemedDatePicker({
 
           <div className="grid grid-cols-7 gap-1 mb-1">
             {WEEK_DAYS.map((day) => (
-              <div key={day} className="text-center text-xs py-1" style={{ color: "var(--text-muted)" }}>
+              <div key={day} className="text-center text-[10px] py-0.5 font-medium" style={{ color: "var(--text-muted)" }}>
                 {day}
               </div>
             ))}
@@ -343,7 +343,7 @@ export default function ThemedDatePicker({
                   type="button"
                   onClick={() => selectDate(cell.day, cell.monthOffset)}
                   disabled={isDisabled}
-                  className={`h-8 rounded-md text-xs calendar-day-btn ${isSelected ? "calendar-day-selected" : ""}`.trim()}
+                  className={`aspect-square w-full rounded text-xs leading-none flex items-center justify-center calendar-day-btn ${isSelected ? "calendar-day-selected" : ""}`.trim()}
                   style={{
                     color:
                       isDisabled
@@ -364,11 +364,11 @@ export default function ThemedDatePicker({
             })}
           </div>
 
-          <div className="mt-3 pt-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--border)" }}>
+          <div className="mt-2 pt-2 flex items-center justify-between gap-1.5" style={{ borderTop: "1px solid var(--border)" }}>
             <button
               type="button"
               onClick={setToday}
-              className="text-xs font-medium px-2.5 py-1.5 rounded-md"
+              className="text-[11px] font-medium px-2.5 py-1.5 rounded flex-1"
               style={{ background: "var(--brand-dim)", color: "var(--brand-light)", border: "1px solid var(--brand-border)" }}
             >
               Today
@@ -376,7 +376,7 @@ export default function ThemedDatePicker({
             <button
               type="button"
               onClick={clearDate}
-              className="text-xs font-medium px-2.5 py-1.5 rounded-md"
+              className="text-[11px] font-medium px-2.5 py-1.5 rounded flex-1"
               style={{ background: "transparent", color: "var(--text-secondary)", border: "1px solid var(--border)" }}
             >
               Clear

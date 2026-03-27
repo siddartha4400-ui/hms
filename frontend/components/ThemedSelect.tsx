@@ -32,8 +32,9 @@ export default function ThemedSelect({
   };
 
   const optionStyle = {
-    background: "var(--bg-surface)",
+    background: "var(--bg-elevated)",
     color: "var(--text-primary)",
+    padding: "4px 8px",
   };
 
   return (
@@ -42,7 +43,7 @@ export default function ThemedSelect({
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="h-12 w-full appearance-none rounded-2xl border px-4 pr-11 text-sm outline-none transition disabled:cursor-not-allowed"
+        className="h-12 w-full appearance-none rounded-2xl border px-4 pr-11 text-base outline-none transition disabled:cursor-not-allowed md:text-sm focus:border-[var(--brand-border)] focus:ring-2 focus:ring-[var(--brand-dim)] focus:ring-offset-0"
         style={controlStyle}
       >
         {placeholder ? <option value="" style={optionStyle}>{placeholder}</option> : null}
@@ -52,7 +53,7 @@ export default function ThemedSelect({
           </option>
         ))}
       </select>
-      <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4" style={{ color: "var(--text-secondary)" }}>
+      <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4 transition-colors" style={{ color: disabled ? "var(--text-muted)" : "var(--text-secondary)" }}>
         <FiChevronDown className="h-4 w-4" />
       </span>
     </div>

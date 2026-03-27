@@ -37,7 +37,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       {/* CSS-variable background adapts to dark / light theme automatically */}
       <div className="min-h-screen selection:bg-amber-500/30" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
         <Header />
-        <main className="pt-16">
+        <main className="pt-[4.25rem] md:pt-16" style={{ paddingTop: 'max(4.25rem, env(safe-area-inset-top))' }}>
           {children}
         </main>
       </div>

@@ -5,6 +5,7 @@ import { FiMoon, FiSun } from "react-icons/fi";
 
 // ─── Theme definitions ────────────────────────────────────────────────────────
 export type AppTheme = "dark" | "light" | "sunset";
+export const THEME_CHANGED_EVENT = "hs-theme-changed";
 
 export const THEMES: AppTheme[] = ["dark", "light", "sunset"];
 
@@ -24,7 +25,7 @@ function applyTheme(theme: AppTheme) {
 }
 
 // ─── ThemeToggle Button ───────────────────────────────────────────────────────
-export default function ThemeToggle({ compact = false }: { compact?: boolean }) {
+export default function ThemeToggle({ compact = false, selectable = false }: { compact?: boolean; selectable?: boolean }) {
   const [theme, setTheme] = useState<AppTheme>("dark");
   const [mounted, setMounted] = useState(false);
 
@@ -40,6 +41,14 @@ export default function ThemeToggle({ compact = false }: { compact?: boolean }) 
     setTheme(next);
     localStorage.setItem(LS_KEY, next);
     applyTheme(next);
+    window.dispatchEvent(new Event(THEME_CHANGED_EVENT));
+  };
+
+  const handleSelect = (next: AppTheme) => {
+    setTheme(next);
+    localStorage.setItem(LS_KEY, next);
+    applyTheme(next);
+    window.dispatchEvent(new Event(THEME_CHANGED_EVENT));
   };
 
   // Prevent flash before mount
@@ -66,6 +75,37 @@ export default function ThemeToggle({ compact = false }: { compact?: boolean }) 
   };
 
   const col = themeColors[theme];
+
+  if (selectable) {
+    return (
+      <div className="grid grid-cols-3 gap-2" role="group" aria-label="Theme options">
+        {THEMES.map((option) => {
+          const isActive = option === theme;
+          const optionMeta = THEME_META[option];
+          const optionCol = themeColors[option];
+
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => handleSelect(option)}
+              title={`Use ${optionMeta.label} theme`}
+              aria-label={`Use ${optionMeta.label} theme`}
+              aria-pressed={isActive}
+              className="h-9 rounded-md px-2 text-[11px] font-semibold transition-all duration-200"
+              style={{
+                background: isActive ? optionCol.bg : "var(--bg-input)",
+                border: isActive ? `1px solid ${optionCol.border}` : "1px solid var(--border)",
+                color: isActive ? optionCol.color : "var(--text-secondary)",
+              }}
+            >
+              {optionMeta.label}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
 
   if (compact) {
     return (

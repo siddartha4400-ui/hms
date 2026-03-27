@@ -151,6 +151,43 @@ body {
   font-family: var(--font-geist-sans), 'Inter', Arial, sans-serif;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Mobile-friendly defaults for touch devices */
+@media (max-width: 768px) {
+  html {
+    font-size: 15px;
+  }
+
+  body {
+    line-height: 1.45;
+  }
+}
+
+/* Enforce comfortable touch targets on phones/tablets */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* Sub-360px: scale everything down to fit smallest phones */
+@media (max-width: 360px) {
+  html {
+    font-size: 13.5px;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Tighten touch targets so they don't blow up tile/cell layouts */
+  button, select, a {
+    min-height: unset;
+  }
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────────────────── */
@@ -382,3 +419,26 @@ body {
 
 .btn-animate { transition: transform 160ms ease, box-shadow 160ms ease; }
 .btn-animate:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+
+/* ── Select / Dropdown Styling ────────────────────────────────────────────── */
+select {
+  accent-color: var(--brand);
+}
+
+select option {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  padding: 4px 8px;
+}
+
+select option:checked {
+  background: var(--brand-dim);
+  background-image: linear-gradient(var(--bg-elevated), var(--bg-elevated));
+  color: var(--text-primary);
+}
+
+/* Webkit browsers dropdown styling */
+select optgroup {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
