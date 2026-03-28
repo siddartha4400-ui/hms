@@ -25,6 +25,7 @@ import {
 } from "../graphql/operations";
 import { LIST_BUILDINGS_QUERY } from "@/project_components/propertys/graphql/operations";
 import { getUserHmsId } from "@/lib/auth-token";
+import { isMainSiteHost, resolveHostSubsiteKey } from "@/lib/host-utils";
 import { GET_USER_PROFILE_QUERY } from "@/project_components/common-routes/graphql/operations";
 import { LIST_HMS_QUERY } from "@/project_components/subsites/graphql/operations";
 
@@ -84,33 +85,6 @@ type HmsListResponse = {
   subsiteBaseDomain?: string | null;
   listHms: HmsItem[];
 };
-
-function resolveHostSubsiteKey(hostName: string, baseDomain: string): string | null {
-  const host = (hostName || "").trim().toLowerCase();
-  if (!host || host === "localhost" || host === "127.0.0.1") {
-    return null;
-  }
-
-  if (baseDomain && host.endsWith(`.${baseDomain}`)) {
-    const leftPart = host.slice(0, -(`.${baseDomain}`).length);
-    const candidate = leftPart.split(".")[0]?.trim().toLowerCase();
-    if (!candidate || candidate === "www" || candidate === "backend") {
-      return null;
-    }
-    return candidate;
-  }
-
-  const parts = host.split(".").filter(Boolean);
-  if (parts.length >= 3) {
-    const candidate = parts[0]?.trim().toLowerCase();
-    if (!candidate || candidate === "www" || candidate === "backend") {
-      return null;
-    }
-    return candidate;
-  }
-
-  return null;
-}
 
 const TABS: Array<{ key: ViewType; label: string; icon: React.ReactNode }> = [
   { key: "pending", label: "Booking Requests", icon: <FiClock className="h-4 w-4" /> },
@@ -194,9 +168,7 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
 
   const hostName = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
   const baseDomain = (hmsData?.subsiteBaseDomain || "").trim().toLowerCase();
-  const isMainSiteHost = baseDomain
-    ? hostName === baseDomain || hostName === `www.${baseDomain}`
-    : hostName === "hms.local" || hostName === "www.hms.local";
+  const isMainPortalHost = isMainSiteHost(hostName, baseDomain);
   const subsiteOptions = useMemo(() => hmsData?.listHms || [], [hmsData]);
   const hostSubsiteKey = useMemo(() => resolveHostSubsiteKey(hostName, baseDomain), [hostName, baseDomain]);
   const hostMatchedSubsite = useMemo(
@@ -206,10 +178,10 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
 
   const baseHmsId = storedHmsId ?? profileCompanyId;
   const selectedSubsiteId = selectedSubsite === "all" ? null : Number(selectedSubsite);
-  const effectiveHmsId = isMainSiteHost ? selectedSubsiteId : (hostMatchedSubsite?.id ?? baseHmsId);
+  const effectiveHmsId = isMainPortalHost ? selectedSubsiteId : (hostMatchedSubsite?.id ?? baseHmsId);
   const queryView: QueryViewType = activeTab === "due_soon" ? "ongoing" : activeTab;
   const hasCrossSubsiteMismatch =
-    !isMainSiteHost &&
+    !isMainPortalHost &&
     Boolean(hostMatchedSubsite?.id) &&
     Boolean(baseHmsId) &&
     Number(baseHmsId) !== Number(hostMatchedSubsite?.id);
@@ -222,7 +194,7 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
   }, [hasCrossSubsiteMismatch, hmsLoading, router]);
 
   useEffect(() => {
-    if (!isMainSiteHost) return;
+    if (!isMainPortalHost) return;
     if (hmsLoading) return;
     if (subsiteOptions.length === 0) return;
 
@@ -239,17 +211,17 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
     if (!subsiteOptions.some((item) => item.id === selectedId)) {
       setSelectedSubsite("all");
     }
-  }, [hmsLoading, isMainSiteHost, selectedSubsite, subsiteOptions]);
+  }, [hmsLoading, isMainPortalHost, selectedSubsite, subsiteOptions]);
 
   useEffect(() => {
-    if (!isMainSiteHost) return;
+    if (!isMainPortalHost) return;
     if (hmsLoading) return;
     if (subsiteOptions.length === 0) return;
     if (selectedSubsite !== "all") return;
     if (baseHmsId && subsiteOptions.some((item) => item.id === baseHmsId)) {
       setSelectedSubsite(String(baseHmsId));
     }
-  }, [hmsLoading, isMainSiteHost, selectedSubsite, baseHmsId, subsiteOptions]);
+  }, [hmsLoading, isMainPortalHost, selectedSubsite, baseHmsId, subsiteOptions]);
 
   const selectedHmsRecord = useMemo(() => {
     if (!effectiveHmsId) return null;
@@ -257,9 +229,9 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
   }, [effectiveHmsId, subsiteOptions]);
 
   const lockedPropertyType = useMemo(() => {
-    if (isMainSiteHost) return null;
+    if (isMainPortalHost) return null;
     return propertyTypeFromHmsType(selectedHmsRecord?.hmsType ?? null);
-  }, [isMainSiteHost, selectedHmsRecord]);
+  }, [isMainPortalHost, selectedHmsRecord]);
 
   const { data, loading, error: listError, refetch } = useQuery<BookingResponse>(LIST_BOOKINGS_QUERY, {
     skip: hasCrossSubsiteMismatch,
@@ -592,7 +564,7 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
           </h1>
         </div>
         <div className="flex flex-wrap items-end gap-2">
-          {isMainSiteHost ? (
+          {isMainPortalHost ? (
             <label className="min-w-[190px]">
               <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Subsite</span>
               <select
@@ -666,7 +638,7 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
       </div>
 
       <div className="-mt-2 mb-4 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.12em] text-slate-400">
-        {isMainSiteHost ? <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2.5 py-1">{selectedSubsiteLabel}</span> : null}
+        {isMainPortalHost ? <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2.5 py-1">{selectedSubsiteLabel}</span> : null}
         <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2.5 py-1">{selectedCityLabel}</span>
         <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2.5 py-1">{selectedPropertyTypeLabel}</span>
         <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2.5 py-1">{selectedBuildingLabel}</span>

@@ -3,6 +3,8 @@ const REFRESH_TOKEN_KEY = 'refreshToken';
 const USER_ROLE_KEY = 'userRole';
 const USER_HMS_ID_KEY = 'userHmsId';
 
+import { isMainSiteHost } from './host-utils';
+
 /** Dispatch this event after any login / logout so all Header instances re-sync. */
 export const AUTH_CHANGED_EVENT = 'hs:auth-changed';
 
@@ -64,11 +66,11 @@ export function getUserRole(): string | null {
   }
 
   const hostname = window.location.hostname.toLowerCase();
-  const isMainSiteHost = hostname === 'hms.local' || hostname === 'www.hms.local';
+  const isMainPortalHost = isMainSiteHost(hostname);
   const isSubsiteScopedAdmin = storedRole === 'site_admin' || storedRole === 'site_building_manager';
 
   // On the main portal, subsite-scoped admins should behave like normal users.
-  if (isMainSiteHost && isSubsiteScopedAdmin) {
+  if (isMainPortalHost && isSubsiteScopedAdmin) {
     return 'normal_user';
   }
 

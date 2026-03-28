@@ -13,6 +13,10 @@ import os
 logger = logging.getLogger(__name__)
 
 
+def _normalize_email(email: str) -> str:
+    return (email or '').strip().lower()
+
+
 def _get_profile_picture_url(profile_id):
     if not profile_id:
         return ""
@@ -145,7 +149,8 @@ class AuthService:
     @staticmethod
     def login_with_password(email, password):
         """Handle password-based login."""
-        django_user = DjangoUser.objects.filter(email=email).first()
+        normalized_email = _normalize_email(email)
+        django_user = DjangoUser.objects.filter(email__iexact=normalized_email).first()
 
         if not django_user:
             raise ApiException('Invalid email or password')
@@ -158,7 +163,7 @@ class AuthService:
             raise ApiException('Account is inactive')
 
         # Get profile; auto-create a minimal one for admin/legacy accounts that have no profile
-        user = UserRepository.get_user_by_email(email)
+        user = UserRepository.get_user_by_email(normalized_email)
         if not user:
             from apps.users.models import User as UserModel
             user = UserModel.objects.create(

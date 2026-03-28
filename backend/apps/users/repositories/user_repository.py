@@ -5,6 +5,10 @@ import random
 import string
 
 
+def _normalize_email(email):
+    return (email or '').strip().lower()
+
+
 class UserRepository:
     """Repository for user-related database operations."""
     
@@ -34,7 +38,7 @@ class UserRepository:
     def get_user_by_email(email):
         """Get user by email."""
         try:
-            django_user = DjangoUser.objects.get(email=email)
+            django_user = DjangoUser.objects.get(email__iexact=_normalize_email(email))
             return User.objects.get(auth_user=django_user)
         except (DjangoUser.DoesNotExist, User.DoesNotExist):
             return None
