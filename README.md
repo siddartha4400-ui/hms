@@ -14,6 +14,21 @@ Hotel Management System built with Django, GraphQL, Next.js, and PostgreSQL.
 docker compose up --build
 ```
 
+Use environment-specific compose variables:
+
+```bash
+# Local (hms.local nginx config)
+docker compose --env-file .env.local up --build
+
+# Production (hms.rest nginx config)
+docker compose --env-file .env.prod up --build
+```
+
+The selected root env file also picks service env files:
+
+- `.env.local` -> `backend/.env.local`, `frontend/.env.local`, `nginx/default.local.conf`
+- `.env.prod` -> `backend/.env.prod`, `frontend/.env.prod`, `nginx/default.prod.conf`
+
 Frontend runs at `http://localhost:3000`.
 
 Backend runs at `http://localhost:8000`.

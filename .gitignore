@@ -12,6 +12,11 @@ node_modules/
 
 # Environment
 .env
+.env.*
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
 
 # OS
 .DS_Store

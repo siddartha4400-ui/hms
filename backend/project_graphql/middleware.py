@@ -26,7 +26,7 @@ def _get_subsite_key_from_host(host: str, base_domain: str, backend_host: str) -
     if not normalized_base_domain or not normalized_host.endswith(suffix):
         return None
 
-    # Example: alpha.hms.local -> alpha
+    # Example: alpha.<base_domain> -> alpha
     left_part = normalized_host[: -len(suffix)]
     if not left_part:
         return None
@@ -52,8 +52,8 @@ class SubsiteContextMiddleware:
         host = _extract_host_without_port(request)
         subsite_key = _get_subsite_key_from_host(
             host=host,
-            base_domain=getattr(settings, "SUBSITE_BASE_DOMAIN", "hms.local"),
-            backend_host=getattr(settings, "BACKEND_BASE_HOST", "backend.hms.local"),
+            base_domain=getattr(settings, "SUBSITE_BASE_DOMAIN", ""),
+            backend_host=getattr(settings, "BACKEND_BASE_HOST", ""),
         )
 
         request.subsite_key = subsite_key

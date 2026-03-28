@@ -16,6 +16,8 @@ services:
   backend:
     build: ./backend
     container_name: hms_backend
+    env_file:
+      - ./backend/${BACKEND_ENV_FILE:-.env.local}
     volumes:
       - ./backend:/app
     ports:
@@ -26,6 +28,8 @@ services:
   frontend:
     build: ./frontend
     container_name: hms_frontend
+    env_file:
+      - ./frontend/${FRONTEND_ENV_FILE:-.env.local}
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -46,7 +50,7 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/${NGINX_CONF_FILE:-default.local.conf}:/etc/nginx/conf.d/default.conf:ro
 
 volumes:
   postgres_data:

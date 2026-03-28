@@ -180,9 +180,11 @@ export default function Header() {
 
     const hostName = window.location.hostname.toLowerCase();
     const baseDomain = (hmsAccessData?.subsiteBaseDomain || '').trim().toLowerCase();
-    const isMainSiteHost = baseDomain
-      ? hostName === baseDomain || hostName === `www.${baseDomain}`
-      : hostName === 'hms.local' || hostName === 'www.hms.local';
+    const configuredBaseDomain = (process.env.NEXT_PUBLIC_BASE_DOMAIN || '').trim().toLowerCase();
+    const effectiveBaseDomain = (baseDomain || configuredBaseDomain).trim().toLowerCase();
+    const isMainSiteHost = effectiveBaseDomain
+      ? hostName === effectiveBaseDomain || hostName === `www.${effectiveBaseDomain}`
+      : hostName === 'localhost' || hostName === '127.0.0.1';
 
     if (isMainSiteHost) {
       return links;

@@ -107,10 +107,12 @@ export default function DashboardOrganism() {
   const isSubsiteScopedAdmin = role === 'site_admin' || role === 'site_building_manager';
   const hostName = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
   const baseDomain = (hmsData?.subsiteBaseDomain || '').trim().toLowerCase();
-  const isMainSiteHost = baseDomain
-    ? hostName === baseDomain || hostName === `www.${baseDomain}`
-    : hostName === 'hms.local' || hostName === 'www.hms.local';
-  const hostSubsiteKey = resolveHostSubsiteKey(hostName, baseDomain);
+  const configuredBaseDomain = (process.env.NEXT_PUBLIC_BASE_DOMAIN || '').trim().toLowerCase();
+  const effectiveBaseDomain = (baseDomain || configuredBaseDomain).trim().toLowerCase();
+  const isMainSiteHost = effectiveBaseDomain
+    ? hostName === effectiveBaseDomain || hostName === `www.${effectiveBaseDomain}`
+    : hostName === 'localhost' || hostName === '127.0.0.1';
+  const hostSubsiteKey = resolveHostSubsiteKey(hostName, effectiveBaseDomain);
 
   let isCrossSubsiteAdmin = false;
   if (isSubsiteScopedAdmin && !isMainSiteHost) {

@@ -194,11 +194,13 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
 
   const hostName = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
   const baseDomain = (hmsData?.subsiteBaseDomain || "").trim().toLowerCase();
-  const isMainSiteHost = baseDomain
-    ? hostName === baseDomain || hostName === `www.${baseDomain}`
-    : hostName === "hms.local" || hostName === "www.hms.local";
+  const configuredBaseDomain = (process.env.NEXT_PUBLIC_BASE_DOMAIN || "").trim().toLowerCase();
+  const effectiveBaseDomain = (baseDomain || configuredBaseDomain).trim().toLowerCase();
+  const isMainSiteHost = effectiveBaseDomain
+    ? hostName === effectiveBaseDomain || hostName === `www.${effectiveBaseDomain}`
+    : hostName === "localhost" || hostName === "127.0.0.1";
   const subsiteOptions = useMemo(() => hmsData?.listHms || [], [hmsData]);
-  const hostSubsiteKey = useMemo(() => resolveHostSubsiteKey(hostName, baseDomain), [hostName, baseDomain]);
+  const hostSubsiteKey = useMemo(() => resolveHostSubsiteKey(hostName, effectiveBaseDomain), [hostName, effectiveBaseDomain]);
   const hostMatchedSubsite = useMemo(
     () => subsiteOptions.find((item) => (item.hmsName || "").toLowerCase() === hostSubsiteKey) || null,
     [hostSubsiteKey, subsiteOptions],

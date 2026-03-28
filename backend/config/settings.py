@@ -31,12 +31,14 @@ SECRET_KEY = 'django-insecure-)t7f=rcx$pj1svxws$rhfiwniqdhsx!8$i!xq^5nmlz4a!#!8#
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-SUBSITE_BASE_DOMAIN = os.getenv('SUBSITE_BASE_DOMAIN', 'hms.local').strip().lower()
-BACKEND_BASE_HOST = os.getenv('BACKEND_BASE_HOST', f'backend.{SUBSITE_BASE_DOMAIN}').strip().lower()
+SUBSITE_BASE_DOMAIN = os.getenv('SUBSITE_BASE_DOMAIN', '').strip().lower()
+BACKEND_BASE_HOST = os.getenv('BACKEND_BASE_HOST', '').strip().lower()
+if not BACKEND_BASE_HOST and SUBSITE_BASE_DOMAIN:
+    BACKEND_BASE_HOST = f'backend.{SUBSITE_BASE_DOMAIN}'
 
 _allowed_hosts_raw = os.getenv(
     'ALLOWED_HOSTS',
-    f'localhost,127.0.0.1,{BACKEND_BASE_HOST},.{SUBSITE_BASE_DOMAIN}'
+    'localhost,127.0.0.1'
 )
 ALLOWED_HOSTS = [host.strip() for host in _allowed_hosts_raw.split(',') if host.strip()]
 
@@ -92,6 +94,10 @@ _default_origin_regexes = [
 _custom_origin_regexes = [item.strip() for item in os.getenv('CORS_ALLOWED_ORIGIN_REGEXES', '').split(',') if item.strip()]
 CORS_ALLOWED_ORIGIN_REGEXES = _default_origin_regexes + _custom_origin_regexes
 CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.getenv(
+    'CSRF_TRUSTED_ORIGINS',
+    'http://localhost:3000,http://127.0.0.1:3000'
+).split(',') if origin.strip()]
 
 ASGI_APPLICATION = "config.asgi.application"
 

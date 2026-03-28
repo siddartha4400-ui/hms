@@ -64,7 +64,10 @@ export function getUserRole(): string | null {
   }
 
   const hostname = window.location.hostname.toLowerCase();
-  const isMainSiteHost = hostname === 'hms.local' || hostname === 'www.hms.local';
+  const configuredBaseDomain = (process.env.NEXT_PUBLIC_BASE_DOMAIN || '').trim().toLowerCase();
+  const isMainSiteHost = configuredBaseDomain
+    ? hostname === configuredBaseDomain || hostname === `www.${configuredBaseDomain}`
+    : hostname === 'localhost' || hostname === '127.0.0.1';
   const isSubsiteScopedAdmin = storedRole === 'site_admin' || storedRole === 'site_building_manager';
 
   // On the main portal, subsite-scoped admins should behave like normal users.
