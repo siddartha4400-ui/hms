@@ -23,7 +23,6 @@ import {
   getUserHmsId,
   getUserRole,
 } from '@/lib/auth-token';
-import { isMainSiteHost, resolveHostSubsiteKey } from '@/lib/host-utils';
 
 interface HeaderProfileData {
   getUserProfile?: {
@@ -44,6 +43,33 @@ type HmsAccessData = {
   listHms?: HmsAccessItem[] | null;
 };
 type NavLink = { label: string; href: string; icon: React.ReactNode };
+
+function resolveHostSubsiteKey(hostName: string, baseDomain: string): string | null {
+  const host = (hostName || '').trim().toLowerCase();
+  if (!host || host === 'localhost' || host === '127.0.0.1') {
+    return null;
+  }
+
+  if (baseDomain && host.endsWith(`.${baseDomain}`)) {
+    const leftPart = host.slice(0, -(`.${baseDomain}`).length);
+    const candidate = leftPart.split('.')[0]?.trim().toLowerCase();
+    if (!candidate || candidate === 'www' || candidate === 'backend') {
+      return null;
+    }
+    return candidate;
+  }
+
+  const parts = host.split('.').filter(Boolean);
+  if (parts.length >= 3) {
+    const candidate = parts[0]?.trim().toLowerCase();
+    if (!candidate || candidate === 'www' || candidate === 'backend') {
+      return null;
+    }
+    return candidate;
+  }
+
+  return null;
+}
 
 function buildNavLinks(role: string | null, authed: boolean): NavLink[] {
   const home: NavLink = { label: 'Home', href: '/', icon: <FiHome className="h-3.5 w-3.5" /> };
@@ -154,9 +180,11 @@ export default function Header() {
 
     const hostName = window.location.hostname.toLowerCase();
     const baseDomain = (hmsAccessData?.subsiteBaseDomain || '').trim().toLowerCase();
-    const isMainPortalHost = isMainSiteHost(hostName, baseDomain);
+    const isMainSiteHost = baseDomain
+      ? hostName === baseDomain || hostName === `www.${baseDomain}`
+      : hostName === 'hms.local' || hostName === 'www.hms.local';
 
-    if (isMainPortalHost) {
+    if (isMainSiteHost) {
       return links;
     }
 

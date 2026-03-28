@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { FiBookOpen, FiCalendar, FiFileText, FiHome, FiLayers, FiLogIn, FiMapPin, FiMoon } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
 import { getUserHmsId, getUserRole, getValidAuthToken } from '@/lib/auth-token';
-import { isMainSiteHost, resolveHostSubsiteKey } from '@/lib/host-utils';
 import { GET_AVAILABLE_ROUTES_QUERY } from '@/project_components/common-routes/graphql/operations';
 import { EXPIRE_PENDING_BOOKINGS_MUTATION } from '@/project_components/bookings/graphql/operations';
 import { LIST_HMS_QUERY } from '@/project_components/subsites/graphql/operations';
@@ -46,6 +45,33 @@ type HmsListResponse = {
   listHms?: HmsListItem[] | null;
 };
 
+function resolveHostSubsiteKey(hostName: string, baseDomain: string): string | null {
+  const host = (hostName || '').trim().toLowerCase();
+  if (!host || host === 'localhost' || host === '127.0.0.1') {
+    return null;
+  }
+
+  if (baseDomain && host.endsWith(`.${baseDomain}`)) {
+    const leftPart = host.slice(0, -(`.${baseDomain}`).length);
+    const candidate = leftPart.split('.')[0]?.trim().toLowerCase();
+    if (!candidate || candidate === 'www' || candidate === 'backend') {
+      return null;
+    }
+    return candidate;
+  }
+
+  const parts = host.split('.').filter(Boolean);
+  if (parts.length >= 3) {
+    const candidate = parts[0]?.trim().toLowerCase();
+    if (!candidate || candidate === 'www' || candidate === 'backend') {
+      return null;
+    }
+    return candidate;
+  }
+
+  return null;
+}
+
 export default function DashboardOrganism() {
   const router = useRouter();
   // Always start as loading so server and client render the same HTML (avoids hydration mismatch).
@@ -81,11 +107,13 @@ export default function DashboardOrganism() {
   const isSubsiteScopedAdmin = role === 'site_admin' || role === 'site_building_manager';
   const hostName = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
   const baseDomain = (hmsData?.subsiteBaseDomain || '').trim().toLowerCase();
-  const isMainPortalHost = isMainSiteHost(hostName, baseDomain);
+  const isMainSiteHost = baseDomain
+    ? hostName === baseDomain || hostName === `www.${baseDomain}`
+    : hostName === 'hms.local' || hostName === 'www.hms.local';
   const hostSubsiteKey = resolveHostSubsiteKey(hostName, baseDomain);
 
   let isCrossSubsiteAdmin = false;
-  if (isSubsiteScopedAdmin && !isMainPortalHost) {
+  if (isSubsiteScopedAdmin && !isMainSiteHost) {
     const matchedSubsite = (hmsData?.listHms || []).find((item) => (item.hmsName || '').toLowerCase() === hostSubsiteKey);
     if (!matchedSubsite || !storedHmsId || matchedSubsite.id !== storedHmsId) {
       isCrossSubsiteAdmin = true;

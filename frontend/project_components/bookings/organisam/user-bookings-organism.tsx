@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 
 import BookingListView, { BookingListItem } from "../molecule/booking-list-view";
 import { LIST_BOOKINGS_QUERY } from "../graphql/operations";
-import { isMainSiteHost, resolveHostSubsiteKey } from "@/lib/host-utils";
 import { LIST_HMS_QUERY } from "@/project_components/subsites/graphql/operations";
 
 type ViewType = "pending" | "today" | "ongoing" | "upcoming" | "cancelled" | "old";
@@ -24,6 +23,33 @@ type HmsListResponse = {
   listHms: HmsItem[];
 };
 
+function resolveHostSubsiteKey(hostName: string, baseDomain: string): string | null {
+  const host = (hostName || "").trim().toLowerCase();
+  if (!host || host === "localhost" || host === "127.0.0.1") {
+    return null;
+  }
+
+  if (baseDomain && host.endsWith(`.${baseDomain}`)) {
+    const leftPart = host.slice(0, -(`.${baseDomain}`).length);
+    const candidate = leftPart.split(".")[0]?.trim().toLowerCase();
+    if (!candidate || candidate === "www" || candidate === "backend") {
+      return null;
+    }
+    return candidate;
+  }
+
+  const parts = host.split(".").filter(Boolean);
+  if (parts.length >= 3) {
+    const candidate = parts[0]?.trim().toLowerCase();
+    if (!candidate || candidate === "www" || candidate === "backend") {
+      return null;
+    }
+    return candidate;
+  }
+
+  return null;
+}
+
 const TABS: Array<{ key: ViewType; label: string }> = [
   { key: "pending", label: "Pending Requests" },
   { key: "today", label: "Today's Bookings" },
@@ -41,14 +67,16 @@ export default function UserBookingsOrganism() {
 
   const hostName = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
   const baseDomain = (hmsData?.subsiteBaseDomain || "").trim().toLowerCase();
-  const isMainPortalHost = isMainSiteHost(hostName, baseDomain);
+  const isMainSiteHost = baseDomain
+    ? hostName === baseDomain || hostName === `www.${baseDomain}`
+    : hostName === "hms.local" || hostName === "www.hms.local";
   const hostSubsiteKey = resolveHostSubsiteKey(hostName, baseDomain);
   const hostMatchedSubsite = useMemo(
     () => (hmsData?.listHms || []).find((item) => (item.hmsName || "").toLowerCase() === hostSubsiteKey) || null,
     [hmsData, hostSubsiteKey],
   );
-  const effectiveHmsId = isMainPortalHost ? null : (hostMatchedSubsite?.id ?? null);
-  const canRunBookingsQuery = isMainPortalHost || Boolean(effectiveHmsId);
+  const effectiveHmsId = isMainSiteHost ? null : (hostMatchedSubsite?.id ?? null);
+  const canRunBookingsQuery = isMainSiteHost || Boolean(effectiveHmsId);
 
   const { data, loading, error, refetch } = useQuery<BookingResponse>(LIST_BOOKINGS_QUERY, {
     skip: !canRunBookingsQuery,
@@ -57,7 +85,7 @@ export default function UserBookingsOrganism() {
   });
 
   const bookings = useMemo(() => data?.listBookings || [], [data]);
-  const scopeError = !hmsLoading && !isMainPortalHost && !effectiveHmsId
+  const scopeError = !hmsLoading && !isMainSiteHost && !effectiveHmsId
     ? "Unable to resolve subsite context for this host."
     : "";
 
