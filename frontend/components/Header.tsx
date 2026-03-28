@@ -11,6 +11,7 @@ import { LIST_HMS_QUERY } from '@/project_components/subsites/graphql/operations
 import { LOGOUT_MUTATION } from '@/project_components/login/graphql/operations';
 import {
   PROFILE_AVATAR_UPDATED_EVENT,
+  type StoredProfileIdentity,
   getInitials,
   readStoredProfileIdentity,
   syncProfileIdentity,
@@ -102,12 +103,12 @@ export default function Header() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [profileIdentity, setProfileIdentity] = useState({
+  const [profileIdentity, setProfileIdentity] = useState<StoredProfileIdentity>({
     avatarUrl: '',
     initials: 'U',
-    firstName: undefined as string | undefined,
-    lastName: undefined as string | undefined,
-    email: undefined as string | undefined,
+    firstName: undefined,
+    lastName: undefined,
+    email: undefined,
   });
 
   // Sync auth state on mount and whenever auth changes (login / logout from anywhere).
