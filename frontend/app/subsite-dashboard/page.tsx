@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getValidAuthToken } from '@/lib/auth-token';
 import SubsiteDashboardOrganism from '@/project_components/propertys/organisam/subsite-dashboard-organism';
@@ -22,5 +22,9 @@ export default function SubsiteDashboardPage() {
     }
   }, [router]);
 
-  return <SubsiteDashboardOrganism />;
+  return (
+    <Suspense fallback={<div className="p-4 text-sm">Loading dashboard...</div>}>
+      <SubsiteDashboardOrganism />
+    </Suspense>
+  );
 }

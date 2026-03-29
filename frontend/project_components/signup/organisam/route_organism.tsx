@@ -6,6 +6,13 @@ import { useMutation } from '@apollo/client/react';
 import { SIGNUP_MUTATION } from '../graphql/operations';
 import SignupMolecule from '../molecule/route_molecule';
 
+interface SignupData {
+  signup?: {
+    success: boolean;
+    message?: string;
+  };
+}
+
 export default function SignupOrganism() {
   const router = useRouter();
   const [formData, setFormData] = useState({
@@ -19,7 +26,7 @@ export default function SignupOrganism() {
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
 
-  const [signup, { loading }] = useMutation(SIGNUP_MUTATION);
+  const [signup, { loading }] = useMutation<SignupData>(SIGNUP_MUTATION);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });

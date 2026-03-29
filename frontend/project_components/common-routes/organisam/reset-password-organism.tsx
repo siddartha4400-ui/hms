@@ -6,6 +6,13 @@ import { useMutation } from '@apollo/client/react';
 import { RESET_PASSWORD_MUTATION } from '../graphql/operations';
 import ResetPasswordMolecule from '../molecule/reset-password-molecule';
 
+interface ResetPasswordData {
+  resetPassword: {
+    success: boolean;
+    message: string;
+  };
+}
+
 export default function ResetPasswordOrganism() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -18,7 +25,7 @@ export default function ResetPasswordOrganism() {
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
 
-  const [resetPassword, { loading }] = useMutation(RESET_PASSWORD_MUTATION);
+  const [resetPassword, { loading }] = useMutation<ResetPasswordData>(RESET_PASSWORD_MUTATION);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });

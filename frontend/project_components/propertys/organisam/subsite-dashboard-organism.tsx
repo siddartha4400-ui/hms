@@ -61,6 +61,33 @@ type Bed = { id: number; bedNumber: string; status: string; isActive: boolean };
 
 type Result = { success: boolean; message?: string };
 
+type CreateCityMutationResult = {
+  createCity?: {
+    success: boolean;
+    message?: string;
+    city?: {
+      id?: number;
+    };
+  };
+};
+
+type CreateBuildingMutationResult = {
+  createBuilding?: {
+    success: boolean;
+    message?: string;
+    building?: {
+      id?: number;
+    };
+  };
+};
+
+type UpdateBuildingMutationResult = {
+  updateBuilding?: {
+    success: boolean;
+    message?: string;
+  };
+};
+
 const getMutationResult = (data: unknown): Result | null => {
   if (!data || typeof data !== 'object') {
     return null;
@@ -193,9 +220,9 @@ export default function SubsiteDashboardOrganism() {
     skip: !selectedRoomId,
   });
 
-  const [createCity] = useMutation(CREATE_CITY_MUTATION);
-  const [createBuilding] = useMutation(CREATE_BUILDING_MUTATION);
-  const [updateBuilding] = useMutation(UPDATE_BUILDING_MUTATION);
+  const [createCity] = useMutation<CreateCityMutationResult>(CREATE_CITY_MUTATION);
+  const [createBuilding] = useMutation<CreateBuildingMutationResult>(CREATE_BUILDING_MUTATION);
+  const [updateBuilding] = useMutation<UpdateBuildingMutationResult>(UPDATE_BUILDING_MUTATION);
   const [deleteBuilding] = useMutation(DELETE_BUILDING_MUTATION);
 
   const [createFloor] = useMutation(CREATE_FLOOR_MUTATION);

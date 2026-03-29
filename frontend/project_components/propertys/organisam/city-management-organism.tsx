@@ -21,6 +21,13 @@ type CreateCityResult = {
   };
 };
 
+type UpdateCityResult = {
+  updateCity?: {
+    success: boolean;
+    message?: string;
+  };
+};
+
 export default function CityManagementOrganism() {
   const [form, setForm] = React.useState({ cityName: '', state: '', country: '' });
   const [message, setMessage] = React.useState('');
@@ -32,7 +39,7 @@ export default function CityManagementOrganism() {
   });
 
   const [createCity, { loading: creating }] = useMutation<CreateCityResult>(CREATE_CITY_MUTATION);
-  const [updateCity] = useMutation(UPDATE_CITY_MUTATION);
+  const [updateCity] = useMutation<UpdateCityResult>(UPDATE_CITY_MUTATION);
 
   const onSubmit = async () => {
     setError('');
