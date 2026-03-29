@@ -54,6 +54,9 @@ if [[ "${GD_Key}" == "YOUR_GODADDY_API_KEY" || "${GD_Secret}" == "YOUR_GODADDY_A
   exit 1
 fi
 
+export GD_Key
+export GD_Secret
+
 if [[ "${SAVE_ENV}" == "true" ]]; then
   if grep -q '^export GD_Key=' "${HOME}/.bashrc"; then
     sed -i "s|^export GD_Key=.*$|export GD_Key=\"${GD_Key}\"|" "${HOME}/.bashrc"
