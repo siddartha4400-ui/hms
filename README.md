@@ -21,13 +21,18 @@ Use environment-specific compose variables:
 docker compose --env-file .env.local up --build
 
 # Production (hms.rest nginx config)
-docker compose --env-file .env.prod up --build
+docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml up --build
 ```
 
 The selected root env file also picks service env files:
 
 - `.env.local` -> `backend/.env.local`, `frontend/.env.local`, `nginx/default.local.conf`
 - `.env.prod` -> `backend/.env.prod`, `frontend/.env.prod`, `nginx/default.prod.conf`
+
+Build targets are also mode-based:
+
+- `.env.local` -> backend `dev` (runserver with reload), frontend `dev`
+- `.env.prod` -> backend `prod` (daphne ASGI), frontend `prod` (next start)
 
 Frontend runs at `http://localhost:3000`.
 

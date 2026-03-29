@@ -1,0 +1,9 @@
+services:
+  backend:
+    volumes: []
+
+  frontend:
+    volumes: []
+    environment:
+      - NODE_ENV=production
+

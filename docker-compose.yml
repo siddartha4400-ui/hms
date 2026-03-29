@@ -14,7 +14,9 @@ services:
       - "5432:5432"
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      target: ${BACKEND_BUILD_TARGET:-dev}
     container_name: hms_backend
     env_file:
       - ./backend/${BACKEND_ENV_FILE:-.env.local}
@@ -26,7 +28,9 @@ services:
       - DB_HOST=postgres 
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      target: ${FRONTEND_BUILD_TARGET:-dev}
     container_name: hms_frontend
     env_file:
       - ./frontend/${FRONTEND_ENV_FILE:-.env.local}
@@ -36,7 +40,6 @@ services:
     environment:
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=true
-    command: npm run dev
     ports:
       - "3000:3000"
 
