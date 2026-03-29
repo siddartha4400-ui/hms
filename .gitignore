@@ -17,6 +17,10 @@ backend/.env
 backend/.env.*
 frontend/.env
 frontend/.env.*
+ssl/*.pem
+ssl/*.key
+ssl/*.csr
+ssl/*.crt
 
 # OS
 .DS_Store
