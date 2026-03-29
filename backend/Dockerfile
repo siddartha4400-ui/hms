@@ -21,4 +21,4 @@ CMD ["sh", "-c", "python manage.py migrate && python manage.py runserver 0.0.0.0
 
 FROM base AS prod
 
-CMD ["sh", "-c", "python manage.py migrate && daphne -b 0.0.0.0 -p 8000 config.asgi:application"]
+CMD ["sh", "-c", "python manage.py migrate && python manage.py collectstatic --noinput && daphne -b 0.0.0.0 -p 8000 config.asgi:application"]
