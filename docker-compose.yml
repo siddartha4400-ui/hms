@@ -69,8 +69,10 @@ services:
       - NGINX_BACKEND_DOMAIN=${NGINX_BACKEND_DOMAIN}
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/${NGINX_CONF_FILE:-default.local.conf}:/etc/nginx/templates/default.conf.template:ro
+      - ./ssl:/etc/nginx/ssl:ro
 
 volumes:
   postgres_data:
