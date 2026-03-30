@@ -593,14 +593,14 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
             {monthlyOnly ? "Monthly Stay Console" : "Short-Stay Console"}
           </h1>
         </div>
-        <div className="flex flex-wrap items-end gap-2">
+        <div className="flex w-full flex-wrap items-end gap-2 md:w-auto">
           {isMainSiteHost ? (
-            <label className="min-w-[190px]">
+            <label className="w-full sm:min-w-[190px]">
               <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Subsite</span>
               <select
                 value={selectedSubsite}
                 onChange={(event) => setSelectedSubsite(event.target.value)}
-                className="h-10 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs font-semibold tracking-wide text-slate-200 outline-none"
+                className="form-select mobile-select-control h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm font-semibold tracking-wide text-slate-200 outline-none sm:text-xs"
               >
                 <option value="all">All Subsites</option>
                 {subsiteOptions.map((subsite) => (
@@ -611,12 +611,12 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
               </select>
             </label>
           ) : null}
-          <label className="min-w-[160px]">
+          <label className="w-full sm:min-w-[160px]">
             <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">City</span>
             <select
               value={selectedCity}
               onChange={(event) => setSelectedCity(event.target.value)}
-              className="h-10 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs font-semibold tracking-wide text-slate-200 outline-none"
+              className="form-select mobile-select-control h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm font-semibold tracking-wide text-slate-200 outline-none sm:text-xs"
             >
               <option value="all">All Cities</option>
               {cityOptions.map((name) => (
@@ -624,13 +624,13 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
               ))}
             </select>
           </label>
-          <label className="min-w-[160px]">
+          <label className="w-full sm:min-w-[160px]">
             <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Property Type</span>
             <select
               value={selectedPropertyType}
               onChange={(event) => setSelectedPropertyType(event.target.value)}
               disabled={Boolean(lockedPropertyType)}
-              className="h-10 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs font-semibold tracking-wide text-slate-200 outline-none"
+              className="form-select mobile-select-control h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm font-semibold tracking-wide text-slate-200 outline-none sm:text-xs"
             >
               {lockedPropertyType ? (
                 <option value={lockedPropertyType}>{lockedPropertyType === "lodge" ? "Hostel/Lodge" : lockedPropertyType.toUpperCase()}</option>
@@ -644,12 +644,12 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
               )}
             </select>
           </label>
-          <label className="min-w-[180px]">
+          <label className="w-full sm:min-w-[180px]">
             <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Building</span>
             <select
               value={selectedBuilding}
               onChange={(event) => setSelectedBuilding(event.target.value)}
-              className="h-10 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-xs font-semibold tracking-wide text-slate-200 outline-none"
+              className="form-select mobile-select-control h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm font-semibold tracking-wide text-slate-200 outline-none sm:text-xs"
             >
               <option value="all">All Buildings</option>
               {buildingOptions.map((name) => (
@@ -660,7 +660,7 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
           <button
             type="button"
             onClick={() => refetch()}
-            className="h-10 rounded-xl border border-slate-700 px-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-200"
+            className="h-10 w-full rounded-xl border border-slate-700 px-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-200 sm:w-auto"
           >
             Refresh
           </button>

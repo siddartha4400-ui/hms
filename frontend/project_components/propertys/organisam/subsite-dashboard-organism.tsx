@@ -881,7 +881,7 @@ export default function SubsiteDashboardOrganism() {
                   setSelectedSubsiteId(e.target.value ? Number(e.target.value) : null);
                   resetLevelsBelow('subsite');
                 }}
-                className="w-full h-12 rounded-xl px-3"
+                className="form-select mobile-select-control w-full h-12 rounded-xl px-3"
                 style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', opacity: isSubsiteAutoLocked ? 0.7 : 1 }}
               >
                 <option value="">Choose Subsite</option>
@@ -912,7 +912,7 @@ export default function SubsiteDashboardOrganism() {
                     setSelectedCityId(e.target.value ? Number(e.target.value) : null);
                     resetLevelsBelow('city');
                   }}
-                  className="w-full h-12 rounded-xl px-3"
+                  className="form-select mobile-select-control w-full h-12 rounded-xl px-3"
                   style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
                 >
                   <option value="">Choose City</option>
@@ -1260,7 +1260,7 @@ export default function SubsiteDashboardOrganism() {
                 <select
                   value={selectedRoomId || ''}
                   onChange={(e) => setSelectedRoomId(e.target.value ? Number(e.target.value) : null)}
-                  className="h-12 rounded-xl px-3"
+                  className="form-select mobile-select-control h-12 rounded-xl px-3"
                   style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
                 >
                   <option value="">Select room</option>
@@ -1338,7 +1338,7 @@ export default function SubsiteDashboardOrganism() {
           value={subsitePropertyType || buildingForm.propertyType}
           onChange={(e) => setBuildingForm((p) => ({ ...p, propertyType: e.target.value }))}
           disabled={Boolean(subsitePropertyType)}
-          className="h-12 rounded-xl px-3 w-full"
+          className="form-select mobile-select-control h-12 rounded-xl px-3 w-full"
           style={{
             background: 'var(--bg-input)',
             border: '1px solid var(--border)',
@@ -1396,12 +1396,12 @@ export default function SubsiteDashboardOrganism() {
           </>
         ) : (
           <>
-            <select value={roomForm.roomType} onChange={(e) => setRoomForm((p) => ({ ...p, roomType: e.target.value }))} className="h-12 rounded-xl px-3 w-full" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+            <select value={roomForm.roomType} onChange={(e) => setRoomForm((p) => ({ ...p, roomType: e.target.value }))} className="form-select mobile-select-control h-12 rounded-xl px-3 w-full" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
               {roomTypeOptions.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
-            <select value={roomForm.status} onChange={(e) => setRoomForm((p) => ({ ...p, status: e.target.value }))} className="h-12 rounded-xl px-3 w-full" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+            <select value={roomForm.status} onChange={(e) => setRoomForm((p) => ({ ...p, status: e.target.value }))} className="form-select mobile-select-control h-12 rounded-xl px-3 w-full" style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
               <option value="available">Available</option>
               <option value="occupied">Occupied</option>
               <option value="maintenance">Maintenance</option>
@@ -1455,7 +1455,7 @@ export default function SubsiteDashboardOrganism() {
         <select
           value={bedStatusForm}
           onChange={(e) => setBedStatusForm(e.target.value === 'occupied' ? 'occupied' : e.target.value === 'maintenance' ? 'maintenance' : 'available')}
-          className="h-12 rounded-xl px-3 w-full"
+          className="form-select mobile-select-control h-12 rounded-xl px-3 w-full"
           style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
         >
           <option value="available">Available</option>

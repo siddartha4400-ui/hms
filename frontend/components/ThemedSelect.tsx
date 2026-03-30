@@ -15,6 +15,8 @@ type Props = {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  leftIcon?: React.ReactNode;
+  ariaLabel?: string;
 };
 
 export default function ThemedSelect({
@@ -24,6 +26,8 @@ export default function ThemedSelect({
   placeholder,
   disabled = false,
   className = "",
+  leftIcon,
+  ariaLabel,
 }: Props) {
   const controlStyle = {
     borderColor: "var(--border)",
@@ -38,12 +42,21 @@ export default function ThemedSelect({
   };
 
   return (
-    <div className={`relative ${className}`.trim()}>
+    <div className={`themed-select-shell relative ${className}`.trim()}>
+      {leftIcon ? (
+        <span
+          className="themed-select-left-icon pointer-events-none absolute left-3 top-1/2 z-[1] -translate-y-1/2"
+          style={{ color: disabled ? "var(--text-muted)" : "var(--text-secondary)" }}
+        >
+          {leftIcon}
+        </span>
+      ) : null}
       <select
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="h-12 w-full appearance-none rounded-2xl border px-4 pr-11 text-base outline-none transition disabled:cursor-not-allowed md:text-sm focus:border-[var(--brand-border)] focus:ring-2 focus:ring-[var(--brand-dim)] focus:ring-offset-0"
+        aria-label={ariaLabel || placeholder || "Select"}
+        className={`simple-select-control mobile-select-control h-12 w-full rounded-xl border text-left text-sm leading-tight outline-none transition disabled:cursor-not-allowed focus:border-[var(--brand-border)] focus:ring-2 focus:ring-[var(--brand-dim)] focus:ring-offset-0 ${leftIcon ? "pl-10" : "pl-3"}`}
         style={controlStyle}
       >
         {placeholder ? <option value="" style={optionStyle}>{placeholder}</option> : null}
@@ -53,7 +66,10 @@ export default function ThemedSelect({
           </option>
         ))}
       </select>
-      <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4 transition-colors" style={{ color: disabled ? "var(--text-muted)" : "var(--text-secondary)" }}>
+      <span
+        className="themed-select-chevron pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+        style={{ color: disabled ? "var(--text-muted)" : "var(--text-secondary)" }}
+      >
         <FiChevronDown className="h-4 w-4" />
       </span>
     </div>

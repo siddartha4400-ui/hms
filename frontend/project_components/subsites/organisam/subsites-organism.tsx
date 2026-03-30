@@ -323,7 +323,7 @@ export default function SubsitesOrganism() {
                 value={formData.hmsType}
                 onChange={(e) => onFieldChange('hmsType', Number(e.target.value))}
                 disabled={busy}
-                className="w-full h-12 rounded-lg px-3"
+                className="form-select mobile-select-control w-full h-12 rounded-lg px-3"
                 style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
               >
                 <option value={1}>Lodge</option>

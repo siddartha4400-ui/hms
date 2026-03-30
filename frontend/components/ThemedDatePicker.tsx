@@ -227,10 +227,6 @@ export default function ThemedDatePicker({
           borderColor: inputError ? "var(--danger)" : "var(--border)",
         }}
       >
-        <span className="absolute inset-y-0 left-0 w-12 flex items-center justify-center calendar-left-icon pointer-events-none" style={{ color: "var(--text-secondary)" }}>
-          <FiCalendar className="w-[18px] h-[18px]" />
-        </span>
-
         <input
           type="text"
           value={inputValue || displayValue}
@@ -242,7 +238,7 @@ export default function ThemedDatePicker({
           }}
           onBlur={handleTypedInputBlur}
           placeholder={placeholder}
-          className="w-full h-full pl-16 pr-12 rounded-lg outline-none text-base md:text-sm"
+          className="w-full h-full pl-3 pr-12 rounded-lg outline-none text-base md:text-sm"
           style={{
             background: "transparent",
             color: "var(--text-primary)",

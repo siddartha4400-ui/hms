@@ -2,12 +2,14 @@
 
 import { useLazyQuery, useMutation, useQuery } from "@apollo/client/react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   FiArrowRight,
   FiCalendar,
   FiCheckCircle,
   FiGrid,
   FiHome,
+  FiLoader,
   FiLogIn,
   FiMapPin,
   FiMoon,
@@ -16,7 +18,6 @@ import {
   FiUser,
   FiUsers,
 } from "react-icons/fi";
-import Link from "next/link";
 
 import { ThemedDatePicker, ThemedSelect } from "@/components";
 import AttachmentUploader, { UploadedAttachment } from "@/components/AttachmentUploader";
@@ -35,13 +36,6 @@ import {
   SEARCH_AVAILABILITY_QUERY,
 } from "../graphql/operations";
 import { formatDateDDMMYYYY } from "../utils/date";
-
-type City = {
-  id: number;
-  cityName: string;
-  state?: string | null;
-  country?: string | null;
-};
 
 type AvailabilityOption = {
   inventoryType: "room" | "bed";
@@ -87,7 +81,6 @@ type RecentGuest = {
 
 type FlowStep = "search" | "inventory" | "guests";
 type StayDurationMode = "short_period" | "monthly";
-type CommentScope = "pg" | "lodge";
 type RoomTypeFilter = "any" | "ac" | "non_ac";
 
 type NewGuestDraft = {
@@ -157,6 +150,13 @@ type PgRoomGroup = {
   roomNumber: string;
   roomType?: string | null;
   beds: AvailabilityOption[];
+};
+
+type City = {
+  id: number;
+  cityName: string;
+  state?: string;
+  country?: string;
 };
 
 type CitiesResponse = {
@@ -244,6 +244,7 @@ type PublicBookingOrganismProps = {
 };
 
 export default function PublicBookingOrganism({ mode = "public", defaultStayDurationMode = "short_period", hideDurationMode = false }: PublicBookingOrganismProps) {
+  const router = useRouter();
   const today = useMemo(() => formatDateInput(new Date()), []);
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const [cityId, setCityId] = useState<number | "">("");
@@ -259,7 +260,6 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
   const [layoutFloor, setLayoutFloor] = useState<number | null>(null);
   const [guests, setGuests] = useState<BookingGuest[]>(makeGuestList(1));
   const [specialRequest, setSpecialRequest] = useState("");
-  const [commentScope, setCommentScope] = useState<CommentScope>("lodge");
   const [formError, setFormError] = useState("");
   const [confirmation, setConfirmation] = useState<BookingResponse["createBooking"]["booking"] | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -330,6 +330,7 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
   const effectiveCheckIn = checkIn;
   const effectiveCheckOut = stayDurationMode === "monthly" ? addDays(checkIn, 30) : checkOut;
   const nights = stayLength(effectiveCheckIn, effectiveCheckOut);
+  const cityCount = cityData?.listCities?.length ?? 0;
   const recentGuests = recentGuestsData?.myRecentGuests ?? EMPTY_RECENT_GUESTS;
   const guestPool = useMemo<RecentGuest[]>(() => {
     const source = [...customGuestProfiles, ...recentGuests];
@@ -527,6 +528,47 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
     setSelectedGuestIds((current) => current.slice(0, nextCount));
   }
 
+  function applyDatePreset(preset: "today" | "tomorrow" | "weekend" | "week") {
+    const base = new Date(`${today}T00:00:00`);
+
+    if (preset === "weekend") {
+      const offsetToSaturday = (6 - base.getDay() + 7) % 7;
+      const start = new Date(base);
+      start.setDate(base.getDate() + offsetToSaturday);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 2);
+      setCheckIn(formatDateInput(start));
+      setCheckOut(formatDateInput(end));
+      return;
+    }
+
+    if (preset === "week") {
+      const end = new Date(base);
+      end.setDate(base.getDate() + 7);
+      setCheckIn(today);
+      setCheckOut(formatDateInput(end));
+      return;
+    }
+
+    if (preset === "tomorrow") {
+      const start = new Date(base);
+      start.setDate(base.getDate() + 1);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 1);
+      setCheckIn(formatDateInput(start));
+      setCheckOut(formatDateInput(end));
+      return;
+    }
+
+    if (preset === "today") {
+      const end = new Date(base);
+      end.setDate(base.getDate() + 1);
+      setCheckIn(today);
+      setCheckOut(formatDateInput(end));
+      return;
+    }
+  }
+
   function validateSearch(): boolean {
     if (!cityId) {
       setFormError("Select a city before searching.");
@@ -576,9 +618,16 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
     const availableItems = (response.data?.searchAvailability || []).filter((item) => item.available);
     if (availableItems.length > 0) {
       setFlowStep("inventory");
+      // Wait for hero section to unmount and results to paint, then scroll
+      setTimeout(() => {
+        inventoryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 300);
       return;
     }
     setFormError("No available rooms or beds for selected filters. Try another date or city.");
+    setTimeout(() => {
+      inventoryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 300);
   }
 
   function openAddGuestModal() {
@@ -693,7 +742,6 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
         paymentMethod: "manual_booking",
         specialRequest: [
           stayDurationMode === "monthly" ? "Booking mode: Monthly stay" : "Booking mode: Short period",
-          `Comment scope: ${commentScope === "pg" ? "PG only" : "Lodge only"}`,
           specialRequest.trim(),
         ]
           .filter(Boolean)
@@ -708,6 +756,12 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
 
     if (!response.data?.createBooking.success || !response.data.createBooking.booking) {
       setFormError(response.data?.createBooking.message || "Booking failed.");
+      return;
+    }
+
+    // Redirect to my-bookings on success
+    if (!isAdminMode) {
+      router.push("/my-bookings");
       return;
     }
 
@@ -838,7 +892,11 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
   const mutedTextStyle = { color: "var(--text-secondary)" };
   const subtleTextStyle = { color: "var(--text-muted)" };
   const brandButtonStyle = { background: "var(--brand)", color: "#ffffff" };
-  const actionButtonStyle = { background: "var(--action)", color: "#ffffff" };
+  const actionButtonStyle = {
+    background: "linear-gradient(135deg, var(--brand), var(--action))",
+    color: "#ffffff",
+    boxShadow: "0 16px 45px -22px rgba(6, 182, 212, 0.55)",
+  };
   const chipStyle = { background: "var(--bg-chip)", color: "var(--text-secondary)" };
   const successPanelStyle = {
     borderColor: "rgba(16, 185, 129, 0.28)",
@@ -852,157 +910,112 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
 
   return (
     <div className="min-h-screen" style={shellStyle}>
-      <section className={flowStep === "search" ? "relative overflow-hidden border-b" : "hidden"} style={heroStyle}>
+      <section className="relative overflow-hidden border-b" style={heroStyle}>
         <div className="absolute -left-16 top-12 h-56 w-56 rounded-full blur-3xl" style={{ background: "var(--brand-dim)" }} />
         <div className="absolute right-0 top-0 h-72 w-72 rounded-full blur-3xl" style={{ background: "var(--action-dim)" }} />
-        <div className={`mx-auto grid max-w-7xl gap-10 px-6 py-12 md:px-10 md:py-16 lg:px-12 ${isAdminMode ? "lg:grid-cols-1" : "lg:grid-cols-[1.15fr_0.85fr]"}`}>
-          {!isAdminMode ? (
-            <div className="space-y-6">
-              <div className="inline-flex items-center gap-2 rounded-full border px-4 py-2" style={{ borderColor: "var(--brand-border)", background: "var(--bg-glass)" }}>
-                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-                <span className="text-xs font-semibold uppercase tracking-[0.24em]" style={{ color: "var(--brand-light)" }}>Live inventory · Manual approval flow</span>
+        <div className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-8 lg:px-10">
+          <div className="booking-search-panel rounded-[2rem] border p-4 shadow-[0_30px_100px_-45px_rgba(15,23,42,0.35)] backdrop-blur md:p-5" style={glassCardStyle}>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="inline-flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em]" style={{ borderColor: "var(--brand-border)", background: "var(--brand-dim)", color: "var(--brand-light)" }}>
+                <span className="h-1.5 w-1.5 rounded-full animate-pulse-dot" style={{ background: "var(--brand)" }} />
+                {isAdminMode ? "Walk-in" : "Book a stay"}
               </div>
-              <div className="space-y-4">
-                <h1 className="max-w-3xl text-5xl font-semibold leading-tight tracking-[-0.04em] md:text-6xl">
-                  Search by lodge or PG, then pick your exact layout slot.
-                </h1>
-                <p className="max-w-2xl text-base leading-7 md:text-lg" style={mutedTextStyle}>
-                  Explore building-wise availability, open a layout model, choose a specific room/bed, and send a manual booking request to the site admin for approval.
-                </p>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-3xl border p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)]" style={surfaceCardStyle}>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Step 1</p>
-                  <p className="mt-3 text-2xl font-semibold">Search stays</p>
-                  <p className="mt-2 text-sm leading-6" style={mutedTextStyle}>Choose your city and travel dates. We'll instantly show all open rooms and PG beds.</p>
-                </div>
-                <div className="rounded-3xl border p-5 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)]" style={surfaceCardStyle}>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Step 2</p>
-                  <p className="mt-3 text-2xl font-semibold">Verify identity</p>
-                  <p className="mt-2 text-sm leading-6" style={mutedTextStyle}>Upload an Aadhaar photo for each guest. Required at check-in — takes under a minute.</p>
-                </div>
-                <div className="rounded-3xl border p-5 text-white shadow-[0_24px_80px_-36px_rgba(23,54,46,0.7)]" style={{ borderColor: "var(--brand-border)", background: "linear-gradient(135deg, var(--brand), var(--action))" }}>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/80">Step 3</p>
-                  <p className="mt-3 text-2xl font-semibold">Admin approval</p>
-                  <p className="mt-2 text-sm leading-6 text-white/80">Your request goes to site admin. They verify details, confirm payment mode offline, then approve or reject.</p>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="rounded-[2rem] border p-6 shadow-[0_30px_100px_-45px_rgba(15,23,42,0.35)] backdrop-blur md:p-7" style={glassCardStyle}>
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>
-                  {isAdminMode ? "Walk-in booking" : "Public search"}
-                </p>
-                <h2 className="mt-2 text-2xl font-semibold">{isAdminMode ? "Create booking" : "Book now"}</h2>
-              </div>
-              <div className="rounded-2xl px-3 py-2 text-right" style={chipStyle}>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--action-light)" }}>Night span</p>
-                <p className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>{Math.max(nights, 0)} nights</p>
+              <div className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-right" style={chipStyle}>
+                <FiMoon className="h-3.5 w-3.5" style={{ color: "var(--action-light)" }} />
+                <span className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{Math.max(nights, 0)}</span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>night{Math.max(nights, 0) === 1 ? "" : "s"}</span>
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              {isSubsiteAutoLocked ? (
-                <div className="space-y-2 text-sm font-medium md:col-span-2" style={{ color: "var(--text-secondary)" }}>
-                  <span>Subsite</span>
-                  <div className="flex h-12 items-center rounded-2xl border px-4 text-sm" style={{ borderColor: "var(--brand-border)", background: "var(--brand-dim)", color: "var(--text-primary)" }}>
-                    {subsiteLabel}
-                  </div>
-                </div>
-              ) : null}
-              <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-                City
-                <ThemedSelect
-                  value={cityId}
-                  onChange={(value) => setCityId(value ? Number(value) : "")}
-                  placeholder="Select city"
-                  options={(cityData?.listCities || []).map((city) => ({
-                    label: city.cityName,
-                    value: city.id,
-                  }))}
-                />
-              </label>
-              <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-                Stay type
-                <ThemedSelect
-                  value={propertyTypeFilter}
-                  onChange={(value) => setPropertyTypeFilter(value as 'both' | 'pg' | 'lodge')}
-                  disabled={isSubsiteAutoLocked}
-                  options={[
-                    { label: "Both (PG + Lodge)", value: "both" },
-                    { label: "PG only", value: "pg" },
-                    { label: "Lodge only", value: "lodge" },
-                  ]}
-                />
-                {isSubsiteAutoLocked ? (
-                  <p className="text-xs" style={subtleTextStyle}>Auto-selected from subsite type.</p>
-                ) : null}
-              </label>
-              {!hideDurationMode && (
-              <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-                Duration mode
-                <ThemedSelect
-                  value={stayDurationMode}
-                  onChange={(value) => setStayDurationMode(value as StayDurationMode)}
-                  options={[
-                    { label: "Small period", value: "short_period" },
-                    { label: "Monthly stay", value: "monthly" },
-                  ]}
-                />
-              </label>
-              )}
-              <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-                Room type
-                <ThemedSelect
-                  value={roomTypeFilter}
-                  onChange={(value) => setRoomTypeFilter(value as RoomTypeFilter)}
-                  options={[
-                    { label: "Any room type", value: "any" },
-                    { label: "AC", value: "ac" },
-                    { label: "Non-AC", value: "non_ac" },
-                  ]}
-                />
-                <p className="text-xs" style={subtleTextStyle}>Use AC or Non-AC to narrow search results.</p>
-              </label>
-              <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-                Guests
-                <ThemedSelect
-                  value={guestCount}
-                  onChange={(value) => handleGuestCountChange(Number(value))}
-                  disabled={propertyTypeFilter === "pg"}
-                  options={[1, 2, 3, 4].map((value) => ({
-                    label: `${value} ${value === 1 ? "guest" : "guests"}`,
-                    value,
-                  }))}
-                />
-                {propertyTypeFilter === "pg" ? (
-                  <p className="text-xs" style={subtleTextStyle}>PG booking allows 1 guest only.</p>
-                ) : null}
-              </label>
-              {stayDurationMode === "monthly" ? (
-                <label className="space-y-2 text-sm font-medium md:col-span-2" style={{ color: "var(--text-secondary)" }}>
-                  Joining / onboarding date
-                  <ThemedDatePicker
-                    value={checkIn}
-                    minDate={today}
-                    yearStart={currentYear}
-                    yearEnd={currentYear + 2}
-                    onChange={(nextValue) => {
-                      const bounded = nextValue < today ? today : nextValue;
-                      setCheckIn(bounded);
-                    }}
-                    placeholder="DD-MM-YYYY"
-                    className="w-full"
+            <div className="search-toolbar-wrap rounded-2xl border p-3" style={elevatedCardStyle}>
+              <div className="search-toolbar">
+                <div className="search-toolbar-item">
+                  <ThemedSelect
+                    value={cityId}
+                    onChange={(value) => setCityId(value ? Number(value) : "")}
+                    placeholder="City"
+                    leftIcon={<FiMapPin className="h-4 w-4" />}
+                    ariaLabel="City"
+                    options={(cityData?.listCities || []).map((city) => ({
+                      label: city.cityName,
+                      value: city.id,
+                    }))}
                   />
-                </label>
-              ) : (
-                <>
-                  <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-                    Check-in
+                </div>
+
+                <div className="search-toolbar-item">
+                  <ThemedSelect
+                    value={propertyTypeFilter}
+                    onChange={(value) => setPropertyTypeFilter(value as "both" | "pg" | "lodge")}
+                    disabled={isSubsiteAutoLocked}
+                    leftIcon={<FiHome className="h-4 w-4" />}
+                    ariaLabel="Stay type"
+                    options={[
+                      { label: "Both", value: "both" },
+                      { label: "PG", value: "pg" },
+                      { label: "Lodge", value: "lodge" },
+                    ]}
+                  />
+                </div>
+
+                {!hideDurationMode ? (
+                  <div className="search-toolbar-item">
+                    <ThemedSelect
+                      value={stayDurationMode}
+                      onChange={(value) => setStayDurationMode(value as StayDurationMode)}
+                      leftIcon={<FiCalendar className="h-4 w-4" />}
+                      ariaLabel="Duration mode"
+                      options={[
+                        { label: "Short", value: "short_period" },
+                        { label: "Monthly", value: "monthly" },
+                      ]}
+                    />
+                  </div>
+                ) : null}
+
+                <div className="search-toolbar-item">
+                  <ThemedSelect
+                    value={roomTypeFilter}
+                    onChange={(value) => setRoomTypeFilter(value as RoomTypeFilter)}
+                    leftIcon={<FiGrid className="h-4 w-4" />}
+                    ariaLabel="Room type"
+                    options={[
+                      { label: "Any room", value: "any" },
+                      { label: "AC", value: "ac" },
+                      { label: "Non-AC", value: "non_ac" },
+                    ]}
+                  />
+                </div>
+
+                <div className="search-toolbar-item inline-flex h-11 items-center gap-1.5 rounded-xl border px-2" style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
+                  <button
+                    type="button"
+                    onClick={() => handleGuestCountChange(Math.max(1, guestCount - 1))}
+                    disabled={propertyTypeFilter === "pg" || guestCount <= 1}
+                    className="h-8 w-8 rounded-lg border text-base font-semibold"
+                    style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--bg-elevated)", opacity: propertyTypeFilter === "pg" ? 0.5 : 1 }}
+                  >
+                    -
+                  </button>
+                  <span
+                    className="inline-flex h-8 min-w-[64px] items-center justify-center rounded-lg border px-2 text-center text-xs font-semibold"
+                    style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--bg-input)" }}
+                  >
+                    {guestCount} {guestCount === 1 ? "guest" : "guests"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleGuestCountChange(Math.min(4, guestCount + 1))}
+                    disabled={propertyTypeFilter === "pg" || guestCount >= 4}
+                    className="h-8 w-8 rounded-lg border text-base font-semibold"
+                    style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--bg-elevated)", opacity: propertyTypeFilter === "pg" ? 0.5 : 1 }}
+                  >
+                    +
+                  </button>
+                </div>
+
+                {stayDurationMode === "monthly" ? (
+                  <div className="search-toolbar-item">
                     <ThemedDatePicker
                       value={checkIn}
                       minDate={today}
@@ -1011,98 +1024,102 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
                       onChange={(nextValue) => {
                         const bounded = nextValue < today ? today : nextValue;
                         setCheckIn(bounded);
-                        if (stayLength(bounded, checkOut) <= 0) {
-                          setCheckOut(addDays(bounded, 1));
-                        }
-                        if (stayLength(bounded, checkOut) > 31) {
-                          setCheckOut(addDays(bounded, 31));
-                        }
                       }}
-                      placeholder="DD-MM-YYYY"
-                      className="w-full"
+                      placeholder="Date"
+                      className="w-full toolbar-date-control"
                     />
-                  </label>
-                  <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-                    Check-out
-                    <ThemedDatePicker
-                      value={checkOut}
-                      minDate={addDays(checkIn, 1)}
-                      yearStart={currentYear}
-                      yearEnd={currentYear + 2}
-                      onChange={(nextValue) => {
-                        if (nextValue <= checkIn) {
-                          setCheckOut(addDays(checkIn, 1));
-                          return;
-                        }
-                        if (stayLength(checkIn, nextValue) > 31) {
-                          setCheckOut(addDays(checkIn, 31));
-                          return;
-                        }
-                        setCheckOut(nextValue);
-                      }}
-                      placeholder="DD-MM-YYYY"
-                      className="w-full"
-                    />
-                  </label>
-                </>
-              )}
+                  </div>
+                ) : (
+                  <>
+                    <div className="search-toolbar-item">
+                      <ThemedDatePicker
+                        value={checkIn}
+                        minDate={today}
+                        yearStart={currentYear}
+                        yearEnd={currentYear + 2}
+                        onChange={(nextValue) => {
+                          const bounded = nextValue < today ? today : nextValue;
+                          setCheckIn(bounded);
+                          if (stayLength(bounded, checkOut) <= 0) {
+                            setCheckOut(addDays(bounded, 1));
+                          }
+                          if (stayLength(bounded, checkOut) > 31) {
+                            setCheckOut(addDays(bounded, 31));
+                          }
+                        }}
+                        placeholder="Start"
+                        className="w-full toolbar-date-control"
+                      />
+                    </div>
+                    <div className="search-toolbar-item">
+                      <ThemedDatePicker
+                        value={checkOut}
+                        minDate={addDays(checkIn, 1)}
+                        yearStart={currentYear}
+                        yearEnd={currentYear + 2}
+                        onChange={(nextValue) => {
+                          if (nextValue <= checkIn) {
+                            setCheckOut(addDays(checkIn, 1));
+                            return;
+                          }
+                          if (stayLength(checkIn, nextValue) > 31) {
+                            setCheckOut(addDays(checkIn, 31));
+                            return;
+                          }
+                          setCheckOut(nextValue);
+                        }}
+                        placeholder="End"
+                        className="w-full toolbar-date-control"
+                      />
+                    </div>
+                  </>
+                )}
+
+              </div>
             </div>
 
-            <p className="mt-3 text-xs" style={subtleTextStyle}>
-              Trip dates: <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{formatDateDDMMYYYY(effectiveCheckIn)}</span> to <span className="font-semibold" style={{ color: "var(--text-primary)" }}>{formatDateDDMMYYYY(effectiveCheckOut)}</span>
-            </p>
+            <div className="search-actions-row mt-2.5">
+              {stayDurationMode !== "monthly" ? (
+                <>
+                  <button type="button" onClick={() => applyDatePreset("today")} className="quick-filter-chip">Today</button>
+                  <button type="button" onClick={() => applyDatePreset("tomorrow")} className="quick-filter-chip">Tomorrow</button>
+                  <button type="button" onClick={() => applyDatePreset("weekend")} className="quick-filter-chip">Weekend</button>
+                  <button type="button" onClick={() => applyDatePreset("week")} className="quick-filter-chip">Week</button>
+                </>
+              ) : null}
 
-            <button
-              onClick={handleSearch}
-              disabled={availabilityLoading}
-              className="mt-5 inline-flex h-13 w-full items-center justify-center gap-2 rounded-2xl px-5 text-sm font-semibold uppercase tracking-[0.18em] transition disabled:cursor-not-allowed disabled:opacity-70"
-              style={brandButtonStyle}
-            >
-              {availabilityLoading ? "Searching..." : "Search availability"}
-              <FiArrowRight />
-            </button>
+              <button
+                onClick={handleSearch}
+                disabled={availabilityLoading}
+                className="search-submit-btn ml-auto inline-flex h-10 min-w-[124px] items-center justify-center gap-2 rounded-xl px-3 text-xs font-semibold uppercase tracking-[0.14em] transition disabled:cursor-not-allowed disabled:opacity-70"
+                style={brandButtonStyle}
+              >
+                {availabilityLoading ? (
+                  <>
+                    <FiLoader className="h-3.5 w-3.5 animate-spin" />
+                    Searching...
+                  </>
+                ) : (
+                  <>
+                    <FiArrowRight className="h-3.5 w-3.5" />
+                    Search
+                  </>
+                )}
+              </button>
+            </div>
 
-            <div className="mt-5 flex flex-wrap items-center gap-3 text-sm" style={mutedTextStyle}>
-              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={chipStyle}><FiCalendar /> {stayDurationMode === "monthly" ? "fixed 30-day monthly block" : "stay under 31 days"}</span>
-              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={chipStyle}><FiShield /> manual admin approval</span>
-              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={chipStyle}><FiShield /> Aadhaar required for public bookings</span>
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <span className="result-meta-chip"><FiCalendar className="h-3 w-3" /> {formatDateDDMMYYYY(effectiveCheckIn)} → {formatDateDDMMYYYY(effectiveCheckOut)}</span>
+              <span className="result-meta-chip"><FiMoon className="h-3 w-3" /> {Math.max(nights, 0)} night{Math.max(nights, 0) === 1 ? "" : "s"}</span>
+              {isSubsiteAutoLocked ? (
+                <span className="result-meta-chip" style={{ borderColor: "var(--action-border)", color: "var(--action-light)" }}><FiShield className="h-3 w-3" /> Subsite locked</span>
+              ) : null}
             </div>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-6 py-10 md:px-10 lg:px-12 lg:py-12">
-        <div className="mb-6 grid gap-3 md:grid-cols-3">
-          <div className="rounded-2xl border px-4 py-3" style={flowStep === "search" ? { borderColor: "var(--brand-border)", background: "var(--brand-dim)" } : surfaceCardStyle}>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={subtleTextStyle}>Step 1</p>
-            <p className="mt-1 text-sm font-semibold">Search stay</p>
-          </div>
-          <div className="rounded-2xl border px-4 py-3" style={flowStep === "inventory" ? { borderColor: "var(--brand-border)", background: "var(--brand-dim)" } : surfaceCardStyle}>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={subtleTextStyle}>Step 2</p>
-            <p className="mt-1 text-sm font-semibold">Choose room or bed</p>
-          </div>
-          <div className="rounded-2xl border px-4 py-3" style={flowStep === "guests" ? { borderColor: "var(--brand-border)", background: "var(--brand-dim)" } : surfaceCardStyle}>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={subtleTextStyle}>Step 3</p>
-            <p className="mt-1 text-sm font-semibold">Select guests and submit</p>
-          </div>
-        </div>
-
-        {flowStep !== "search" ? (
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3" style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
-            <p className="text-sm font-medium" style={mutedTextStyle}>
-              Current flow: {flowStep === "inventory" ? "Choose inventory" : "Select guests and submit"}
-            </p>
-            <button
-              type="button"
-              onClick={() => setFlowStep("search")}
-              className="rounded-xl border px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em]"
-              style={{ borderColor: "var(--border)", color: "var(--text-secondary)", background: "var(--bg-elevated)" }}
-            >
-              Modify search
-            </button>
-          </div>
-        ) : null}
-
+      <section id="results-section" className="mx-auto max-w-7xl px-4 py-8 md:px-8 lg:px-10">
         {formError ? (
           <div className="mb-6 rounded-3xl border px-5 py-4 text-sm" style={{ borderColor: "rgba(239, 68, 68, 0.28)", background: "rgba(239, 68, 68, 0.12)", color: "var(--danger)" }}>
             {formError}
@@ -1129,25 +1146,31 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
           </div>
         ) : null}
 
-        <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="space-y-5" ref={inventoryRef}>
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Available inventory</p>
-                <h2 className="mt-2 text-3xl font-semibold tracking-[-0.03em]">Results for your trip</h2>
+        <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
+          <div className="space-y-4" ref={inventoryRef} style={{ scrollMarginTop: "1.5rem" }}>
+            {flowStep !== "search" ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="result-meta-chip"><FiMapPin className="h-3 w-3" /> {formatDateDDMMYYYY(effectiveCheckIn)} → {formatDateDDMMYYYY(effectiveCheckOut)}</span>
+                <span className="result-meta-chip"><FiHome className="h-3 w-3" /> {propertyTypeFilter === "both" ? "PG + Lodge" : propertyTypeFilter.toUpperCase()}</span>
+                <span className="result-meta-chip"><FiMoon className="h-3 w-3" /> {Math.max(nights, 0)} night{Math.max(nights, 0) === 1 ? "" : "s"}</span>
+                <span className="result-meta-chip"><FiUsers className="h-3 w-3" /> {guestCount} guest{guestCount === 1 ? "" : "s"}</span>
+                {groupedBuildings.length > 0 ? (
+                  <span className="result-meta-chip" style={{ marginLeft: "auto", color: "var(--brand-light)", borderColor: "var(--brand-border)" }}>{groupedBuildings.length} building{groupedBuildings.length === 1 ? "" : "s"}</span>
+                ) : null}
               </div>
-              <p className="text-sm" style={subtleTextStyle}>{groupedBuildings.length} building{groupedBuildings.length === 1 ? "" : "s"}</p>
-            </div>
+            ) : null}
 
             {flowStep === "search" ? (
-              <div className="rounded-[2rem] border border-dashed p-8 text-center" style={{ borderColor: "var(--border-strong)", background: "var(--bg-surface)", color: "var(--text-secondary)" }}>
-                Complete Step 1 and click Search availability. We will auto-jump to available buildings.
+              <div className="booking-empty-state">
+                <div className="booking-empty-icon"><FiArrowRight /></div>
+                <p className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Set filters above and hit Search</p>
               </div>
             ) : null}
 
             {flowStep !== "search" && groupedBuildings.length === 0 ? (
-              <div className="rounded-[2rem] border border-dashed p-8 text-center" style={{ borderColor: "var(--border-strong)", background: "var(--bg-surface)", color: "var(--text-secondary)" }}>
-                Search by city and dates to see building-wise availability. Then open layout to select a specific room/bed.
+              <div className="booking-empty-state">
+                <div className="booking-empty-icon"><FiMapPin /></div>
+                <p className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>No matches — try different dates or city</p>
               </div>
             ) : flowStep !== "search" ? (
               <div className="grid gap-5">
@@ -1160,11 +1183,11 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
                   return (
                     <article
                       key={`building-${group.buildingId}`}
-                      className="overflow-hidden rounded-[2rem] border transition"
+                      className="booking-result-card overflow-hidden rounded-[2rem] border transition"
                       style={selectedCount > 0 ? { borderColor: "var(--brand)", boxShadow: "0 24px 80px -40px rgba(6, 182, 212, 0.55)" } : { borderColor: "var(--border)", boxShadow: "0 20px 60px -45px rgba(15, 23, 42, 0.45)" }}
                     >
                       <div className="grid gap-0 md:grid-cols-[0.42fr_0.58fr]">
-                        <div className="min-h-[220px] p-6 text-white" style={{ background: "linear-gradient(135deg, var(--brand), var(--action))" }}>
+                        <div className="booking-result-media min-h-[220px] p-6 text-white" style={{ background: "linear-gradient(135deg, var(--brand), var(--action))" }}>
                           <div className="flex h-full flex-col justify-between">
                             <div className="space-y-3">
                               <span className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-white/90">
@@ -1183,36 +1206,40 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
                           </div>
                         </div>
 
-                        <div className="p-6" style={{ background: "var(--bg-surface)", color: "var(--text-primary)" }}>
-                          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                            <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.22em]" style={subtleTextStyle}>Building summary</p>
-                              <p className="mt-2 text-2xl font-semibold">
-                                {group.cityName}
-                              </p>
-                              <p className="mt-1 text-sm" style={subtleTextStyle}>{group.propertyType.toUpperCase()} · Pick exact slot from layout</p>
+                        <div className="booking-result-body flex flex-col justify-between p-5" style={{ background: "var(--bg-surface)", color: "var(--text-primary)" }}>
+                          <div>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="result-meta-chip">{group.propertyType === "pg" ? "PG" : "Lodge"}</span>
+                              <span className="result-meta-chip"><FiGrid className="h-3 w-3" /> {group.slots.length} slot{group.slots.length === 1 ? "" : "s"}</span>
+                              <span className="result-meta-chip"><FiMapPin className="h-3 w-3" /> {group.location || group.cityName}</span>
+                              <span className="result-meta-chip"><FiUsers className="h-3 w-3" /> {group.propertyType === 'pg' ? '1/bed' : `${guestCount} guests`}</span>
+                              {selectedCount > 0 ? (
+                                <span className="result-meta-chip" style={{ borderColor: "var(--brand-border)", color: "var(--brand-light)", background: "var(--brand-dim)" }}>
+                                  <FiCheckCircle className="h-3 w-3" /> {selectedCount} selected
+                                </span>
+                              ) : null}
                             </div>
-                            <button
-                              onClick={() => {
-                                setLayoutBuilding(group);
-                                const sortedFloors = Array.from(new Set(group.slots.map((slot) => slot.floorId ?? slot.floorNumber ?? 0))).sort((a, b) => a - b);
-                                setLayoutFloor(sortedFloors[0] ?? null);
-                              }}
-                              className="rounded-2xl px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] transition"
-                              style={selectedCount > 0 ? brandButtonStyle : { background: "var(--bg-chip)", color: "var(--text-primary)" }}
-                            >
-                              <span className="inline-flex items-center gap-2"><FiGrid />
-                              {selectedCount > 0 ? "Layout selected" : "Open layout"}
-                              </span>
-                            </button>
+
+                            <p className="mt-3 text-xl font-bold tracking-tight">{group.buildingName}</p>
+                            <p className="mt-0.5 text-sm" style={{ color: "var(--text-secondary)" }}>{group.hmsDisplayName} · {group.cityName}</p>
                           </div>
 
-                          <div className="mt-5 grid gap-3 text-sm md:grid-cols-2" style={mutedTextStyle}>
-                            <div className="inline-flex items-center gap-2 rounded-2xl px-4 py-3" style={elevatedCardStyle}><FiMapPin /> {group.location || group.cityName}</div>
-                            <div className="inline-flex items-center gap-2 rounded-2xl px-4 py-3" style={elevatedCardStyle}><FiUsers /> {group.propertyType === 'pg' ? '1 guest per bed' : `${guestCount} guest search`}</div>
-                            <div className="inline-flex items-center gap-2 rounded-2xl px-4 py-3" style={elevatedCardStyle}><FiHome /> {group.hmsDisplayName}</div>
-                            <div className="inline-flex items-center gap-2 rounded-2xl px-4 py-3" style={elevatedCardStyle}><FiMoon /> {Math.max(nights, 1)} night stay</div>
-                          </div>
+                          <button
+                            onClick={() => {
+                              setLayoutBuilding(group);
+                              const sortedFloors = Array.from(new Set(group.slots.map((slot) => slot.floorId ?? slot.floorNumber ?? 0))).sort((a, b) => a - b);
+                              setLayoutFloor(sortedFloors[0] ?? null);
+                            }}
+                            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold uppercase tracking-[0.14em] transition"
+                            style={selectedCount > 0
+                              ? { background: "var(--brand)", color: "#fff", boxShadow: "0 8px 28px -8px rgba(6,182,212,0.55)" }
+                              : { background: "var(--bg-elevated)", color: "var(--text-primary)", border: "1px solid var(--border)" }
+                            }
+                          >
+                            <FiGrid className="h-4 w-4" />
+                            {selectedCount > 0 ? "Change selection" : "View rooms & beds"}
+                            <FiArrowRight className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       </div>
                     </article>
@@ -1222,36 +1249,43 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
             ) : null}
           </div>
 
-          <aside className="space-y-5" ref={guestsRef}>
-            <div className="rounded-[2rem] border p-6 shadow-[0_22px_70px_-50px_rgba(15,23,42,0.5)]" style={surfaceCardStyle}>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Checkout panel</p>
-              <h2 className="mt-2 text-3xl font-semibold tracking-[-0.03em]">Complete booking</h2>
+          <aside className="booking-side-rail space-y-4" ref={guestsRef}>
+            <div className="booking-checkout-card rounded-[2rem] border p-5 shadow-[0_22px_70px_-50px_rgba(15,23,42,0.5)]" style={surfaceCardStyle}>
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <span className="result-meta-chip"><FiCalendar className="h-3 w-3" /> {formatDateDDMMYYYY(effectiveCheckIn)} → {formatDateDDMMYYYY(effectiveCheckOut)}</span>
+                <span className="result-meta-chip"><FiUsers className="h-3 w-3" /> {guestCount} guest{guestCount === 1 ? "" : "s"}</span>
+                <span className="result-meta-chip"><FiMoon className="h-3 w-3" /> {Math.max(nights, 0)} night{Math.max(nights, 0) === 1 ? "" : "s"}</span>
+                {selectedOption ? (
+                  <span className="result-meta-chip" style={{ borderColor: "var(--brand-border)", color: "var(--brand-light)" }}>
+                    {selectedOption.inventoryType === "room" ? `Room ${selectedOption.roomNumber}` : `Bed ${selectedOption.bedNumber}`}
+                  </span>
+                ) : null}
+              </div>
 
               {!isAuthenticated ? (
-                <div className="mt-5 rounded-2xl border p-4" style={{ borderColor: "var(--brand-border)", background: "var(--brand-dim)" }}>
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl" style={brandButtonStyle}>
-                      <FiLogIn className="text-sm text-white" />
+                <div className="rounded-2xl border p-4" style={{ borderColor: "var(--brand-border)", background: "var(--brand-dim)" }}>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={brandButtonStyle}>
+                      <FiLogIn className="h-4 w-4 text-white" />
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold">Sign in to complete your booking</p>
-                      <p className="mt-1 text-xs leading-5" style={mutedTextStyle}>Browse and select a property first — sign in only when you're ready to confirm.</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold">Sign in to book</p>
                       <button
                         type="button"
                         onClick={() => setShowLoginModal(true)}
-                        className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition"
+                        className="mt-2 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition"
                         style={brandButtonStyle}
                       >
-                        <FiLogIn className="text-xs" />
+                        <FiLogIn className="h-3.5 w-3.5" />
                         Sign in
                       </button>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="mt-5 flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm" style={successPanelStyle}>
+                <div className="flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm" style={successPanelStyle}>
                   <FiCheckCircle className="shrink-0" style={{ color: "var(--positive)" }} />
-                  <span className="font-medium" style={{ color: "var(--positive)" }}>You're signed in — ready to book.</span>
+                  <span className="font-semibold" style={{ color: "var(--positive)" }}>Signed in — ready to book</span>
                 </div>
               )}
 
@@ -1265,31 +1299,25 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
                     <p className="mt-1 text-sm text-white/75">Manual booking request · Admin approval required</p>
                   </div>
 
-                  {flowStep !== "guests" ? (
-                    <div className="rounded-3xl border p-4" style={{ borderColor: "var(--brand-border)", background: "var(--brand-dim)" }}>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--brand-light)" }}>Next step</p>
-                      <p className="mt-2 text-base font-semibold">Guest details are ready to fill.</p>
-                      <p className="mt-1 text-sm leading-6" style={mutedTextStyle}>
-                        Continue to guest selection to choose saved guests or create a new one.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={continueToGuestStep}
-                        className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em]"
-                        style={brandButtonStyle}
-                      >
-                        Continue to guest details <FiArrowRight />
-                      </button>
-                    </div>
-                  ) : null}
-
                   <div className="space-y-4">
                     <div className="rounded-3xl border p-4" style={elevatedCardStyle}>
-                      <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="guest-header-row flex flex-wrap items-center justify-between gap-2">
                         <p className="text-xs font-semibold uppercase tracking-[0.22em]" style={subtleTextStyle}>Select guests</p>
-                        <p className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                          {selectedGuestIds.length} / {guestCount} selected
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                            {selectedGuestIds.length} / {guestCount} selected
+                          </p>
+                          {isAuthenticated ? (
+                            <button
+                              type="button"
+                              onClick={() => openAddGuestModal()}
+                              className="rounded-lg px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] transition"
+                              style={{ background: "var(--bg-chip)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
+                            >
+                              Add guest
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
 
                       {isAuthenticated ? (
@@ -1301,7 +1329,20 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
                               return (
                                 <div
                                   key={`guest-select-${guest.id}`}
-                                  className="group flex items-start justify-between gap-3 rounded-xl border px-3 py-3"
+                                  className="group flex cursor-pointer items-start justify-between gap-3 rounded-xl border px-3 py-3 transition"
+                                  role="button"
+                                  tabIndex={disabled ? -1 : 0}
+                                  onClick={() => {
+                                    if (disabled) return;
+                                    toggleGuestSelection(guest.id);
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (disabled) return;
+                                    if (event.key === "Enter" || event.key === " ") {
+                                      event.preventDefault();
+                                      toggleGuestSelection(guest.id);
+                                    }
+                                  }}
                                   style={{
                                     borderColor: checked ? "var(--brand-border)" : "var(--border)",
                                     background: checked ? "var(--brand-dim)" : "var(--bg-surface)",
@@ -1318,8 +1359,11 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
                                   <div className="flex items-center gap-2">
                                     <button
                                       type="button"
-                                      disabled={disabled}
-                                      onClick={() => toggleGuestSelection(guest.id)}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        if (disabled) return;
+                                        toggleGuestSelection(guest.id);
+                                      }}
                                       className="rounded-lg px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em]"
                                       style={checked ? brandButtonStyle : { background: "var(--bg-chip)", color: "var(--text-primary)" }}
                                     >
@@ -1327,7 +1371,10 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => removeReusableGuest(guest.id)}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        removeReusableGuest(guest.id);
+                                      }}
                                       className="hidden rounded-lg border px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] group-hover:inline-flex"
                                       style={{ borderColor: "rgba(239, 68, 68, 0.25)", color: "var(--danger)", background: "rgba(239, 68, 68, 0.08)" }}
                                       aria-label={`Delete ${guest.fullName}`}
@@ -1339,14 +1386,6 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
                               );
                             })}
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => openAddGuestModal()}
-                            className="mt-3 rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition"
-                            style={{ background: "var(--bg-chip)", color: "var(--text-primary)" }}
-                          >
-                            Add new guest
-                          </button>
                         </>
                       ) : (
                         <p className="mt-2 text-sm" style={mutedTextStyle}>Login to choose or create reusable guest profiles.</p>
@@ -1368,19 +1407,6 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
                   </div>
 
                   <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-                    Comment scope
-                    <ThemedSelect
-                      value={commentScope}
-                      onChange={(value) => setCommentScope(value as CommentScope)}
-                      options={[
-                        { label: "PG only", value: "pg" },
-                        { label: "Lodge only", value: "lodge" },
-                      ]}
-                    />
-                    <p className="text-xs" style={subtleTextStyle}>Choose where this comment should apply.</p>
-                  </label>
-
-                  <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                     Comments
                     <textarea
                       value={specialRequest}
@@ -1395,10 +1421,10 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
                   <button
                     onClick={handleBooking}
                     disabled={bookingLoading}
-                    className="inline-flex h-13 w-full items-center justify-center gap-2 rounded-2xl px-5 text-sm font-semibold uppercase tracking-[0.18em] transition disabled:cursor-not-allowed disabled:opacity-70"
+                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold uppercase tracking-[0.14em] transition disabled:cursor-not-allowed disabled:opacity-70"
                     style={actionButtonStyle}
                   >
-                    {bookingLoading ? "Sending request..." : "Send manual booking request"}
+                    {bookingLoading ? "Submitting..." : "Booking request"}
                     <FiArrowRight />
                   </button>
                 </div>
@@ -1411,47 +1437,18 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
               )}
             </div>
 
-            {!isAdminMode && (
-            <div className="rounded-[2rem] border p-6 shadow-[0_22px_70px_-50px_rgba(15,23,42,0.5)]" style={surfaceCardStyle}>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Why book with us?</p>
-              <div className="mt-4 space-y-4 text-sm leading-6" style={mutedTextStyle}>
-                <div className="flex gap-3">
-                  <FiUser className="mt-0.5 shrink-0" style={{ color: "var(--brand)" }} />
-                  <span>Browse freely without signing in. Log in only when you're ready to confirm a stay.</span>
-                </div>
-                <div className="flex gap-3">
-                  <FiShield className="mt-0.5 shrink-0" style={{ color: "var(--brand)" }} />
-                  <span>Requests are approved by site admin in first-approved order for the same room/bed slot.</span>
-                </div>
-                <div className="flex gap-3">
-                  <FiCalendar className="mt-0.5 shrink-0" style={{ color: "var(--brand)" }} />
-                  <span>View all your past and upcoming bookings anytime in your personal dashboard.</span>
-                </div>
-                <div className="flex gap-3">
-                  <FiCheckCircle className="mt-0.5 shrink-0" style={{ color: "var(--brand)" }} />
-                  <span>Approved, rejected, and cancelled bookings are visible in your booking timeline.</span>
-                </div>
-              </div>
-              {!isAuthenticated ? (
-                <button
-                  type="button"
-                  onClick={() => setShowLoginModal(true)}
-                  className="mt-5 w-full rounded-2xl border py-3 text-xs font-semibold uppercase tracking-[0.18em] transition"
-                  style={{ borderColor: "var(--brand-border)", background: "var(--brand-dim)", color: "var(--brand)" }}
-                >
-                  Sign in or create account
-                </button>
-              ) : (
-                <Link
-                  href="/my-bookings"
-                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border py-3 text-xs font-semibold uppercase tracking-[0.18em] no-underline transition"
-                  style={{ borderColor: "rgba(16, 185, 129, 0.28)", background: "rgba(16, 185, 129, 0.12)", color: "var(--positive)" }}
-                >
-                  View my bookings <FiArrowRight />
-                </Link>
-              )}
-            </div>
-            )}
+            {!isAdminMode && !isAuthenticated ? (
+              <button
+                type="button"
+                onClick={() => setShowLoginModal(true)}
+                className="w-full rounded-2xl border py-3 text-xs font-semibold uppercase tracking-[0.18em] transition"
+                style={{ borderColor: "var(--brand-border)", background: "var(--brand-dim)", color: "var(--brand)" }}
+              >
+                Sign in or create account
+              </button>
+            ) : null}
+
+
           </aside>
         </div>
       </section>
@@ -1591,7 +1588,7 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
             }
           }}
         >
-          <div className="w-full max-w-xl rounded-[2rem] border p-6 shadow-2xl" style={surfaceCardStyle}>
+          <div className="add-guest-modal-panel w-full max-w-xl rounded-[2rem] border p-6 shadow-2xl" style={surfaceCardStyle}>
             <div className="mb-4 flex items-start justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={subtleTextStyle}>Add new guest</p>
@@ -1608,7 +1605,7 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
               </button>
             </div>
 
-            <div className="grid gap-3">
+            <div className="add-guest-modal-form grid gap-3">
               <label className="space-y-2 text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                 Full name
                 <input
@@ -1674,14 +1671,10 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
         >
           <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}} @keyframes slideUp{from{opacity:0;transform:translateY(24px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}`}</style>
           <div
-            className="w-full max-w-md rounded-[2rem] p-6 shadow-2xl"
+            className="w-full max-w-md rounded-[2rem] border p-5 shadow-2xl"
             style={{ ...surfaceCardStyle, animation: 'slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1)' }}
           >
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold">Sign in</h2>
-                <p className="mt-0.5 text-sm" style={subtleTextStyle}>Choose how you want to continue</p>
-              </div>
+            <div className="mb-4 flex items-center justify-end">
               <button
                 type="button"
                 onClick={closeLoginModal}
