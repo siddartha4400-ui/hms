@@ -221,7 +221,7 @@ export default function ThemedDatePicker({
   return (
     <div ref={rootRef} className={`relative ${className}`.trim()}>
       <div
-        className="relative h-12 rounded-lg border calendar-input-wrap"
+        className="relative h-16 rounded-2xl border calendar-input-wrap"
         style={{
           background: "var(--bg-input)",
           borderColor: inputError ? "var(--danger)" : "var(--border)",
@@ -238,7 +238,7 @@ export default function ThemedDatePicker({
           }}
           onBlur={handleTypedInputBlur}
           placeholder={placeholder}
-          className="w-full h-full pl-3 pr-12 rounded-lg outline-none text-base md:text-sm"
+          className="w-full h-full pl-5 pr-12 rounded-2xl outline-none text-base md:text-sm"
           style={{
             background: "transparent",
             color: "var(--text-primary)",

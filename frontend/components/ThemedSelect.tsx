@@ -56,7 +56,7 @@ export default function ThemedSelect({
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         aria-label={ariaLabel || placeholder || "Select"}
-        className={`simple-select-control mobile-select-control h-12 w-full rounded-xl border text-left text-sm leading-tight outline-none transition disabled:cursor-not-allowed focus:border-[var(--brand-border)] focus:ring-2 focus:ring-[var(--brand-dim)] focus:ring-offset-0 ${leftIcon ? "pl-10" : "pl-3"}`}
+        className={`simple-select-control mobile-select-control h-16 w-full rounded-2xl border text-left text-base leading-tight outline-none transition disabled:cursor-not-allowed focus:border-[var(--brand-border)] focus:ring-2 focus:ring-[var(--brand-dim)] focus:ring-offset-0 ${leftIcon ? "pl-12" : "pl-5"}`}
         style={controlStyle}
       >
         {placeholder ? <option value="" style={optionStyle}>{placeholder}</option> : null}

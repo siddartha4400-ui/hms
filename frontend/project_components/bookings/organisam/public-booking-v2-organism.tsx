@@ -284,6 +284,24 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
   });
   const inventoryRef = useRef<HTMLDivElement | null>(null);
   const guestsRef = useRef<HTMLDivElement | null>(null);
+  const resultsRef = useRef<HTMLElement | null>(null);
+  const [isResultsInView, setIsResultsInView] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !resultsRef.current) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsResultsInView(true);
+        }
+      },
+      { threshold: 0.05 }
+    );
+
+    observer.observe(resultsRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   // Sync auth state on mount and on any AUTH_CHANGED_EVENT (login / logout from Header or modal)
   useEffect(() => {
@@ -988,18 +1006,18 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
                   />
                 </div>
 
-                <div className={`${styles.searchToolbarItem} inline-flex h-11 items-center gap-1.5 rounded-xl border px-2 w-full`} style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
+                <div className={`${styles.searchToolbarItem} inline-flex h-16 items-center gap-1.5 rounded-2xl border px-4 w-full`} style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
                   <button
                     type="button"
                     onClick={() => handleGuestCountChange(Math.max(1, guestCount - 1))}
                     disabled={propertyTypeFilter === "pg" || guestCount <= 1}
-                    className="h-8 w-8 rounded-lg border text-base font-semibold"
+                    className="h-12 w-12 rounded-xl border text-2xl font-bold"
                     style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--bg-elevated)", opacity: propertyTypeFilter === "pg" ? 0.5 : 1 }}
                   >
                     -
                   </button>
                   <span
-                    className="inline-flex h-8 min-w-[64px] items-center justify-center rounded-lg border px-2 text-center text-xs font-semibold"
+                    className="inline-flex h-12 min-w-[80px] items-center justify-center rounded-xl border px-4 text-center text-base font-extrabold"
                     style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--bg-input)" }}
                   >
                     {guestCount} {guestCount === 1 ? "guest" : "guests"}
@@ -1008,7 +1026,7 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
                     type="button"
                     onClick={() => handleGuestCountChange(Math.min(4, guestCount + 1))}
                     disabled={propertyTypeFilter === "pg" || guestCount >= 4}
-                    className="h-8 w-8 rounded-lg border text-base font-semibold"
+                    className="h-12 w-12 rounded-xl border text-2xl font-bold"
                     style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--bg-elevated)", opacity: propertyTypeFilter === "pg" ? 0.5 : 1 }}
                   >
                     +
@@ -1119,7 +1137,11 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
         </div>
       </section>
 
-      <section id="results-section" className="mx-auto max-w-7xl px-4 py-8 md:px-8 lg:px-10">
+      <section 
+        id="results-section" 
+        ref={resultsRef}
+        className={`${styles.revealSection} ${isResultsInView ? styles.revealSectionActive : ""} mx-auto max-w-7xl px-4 py-8 md:px-8 lg:px-10`}
+      >
         {formError ? (
           <div className="mb-6 rounded-3xl border px-5 py-4 text-sm" style={{ borderColor: "rgba(239, 68, 68, 0.28)", background: "rgba(239, 68, 68, 0.12)", color: "var(--danger)" }}>
             {formError}

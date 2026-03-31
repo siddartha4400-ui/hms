@@ -230,28 +230,33 @@ export default function Header() {
 
   return (
     <nav
-      className="fixed top-0 left-0 right-0 z-50 px-3 md:px-6 py-2.5 md:py-3 flex justify-between items-center gap-2"
+      className="fixed top-0 left-0 right-0 z-50 px-4 md:px-8 py-3 md:py-4 flex justify-between items-center gap-4 transition-all duration-500 shadow-sm"
       style={{
         background: 'var(--bg-navbar)',
-        backdropFilter: 'blur(16px)',
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
         borderBottom: '1px solid var(--border)',
+        boxShadow: '0 10px 40px -10px rgba(0,0,0,0.1)',
       }}
     >
-      <div className="flex items-center gap-2.5 shrink-0">
+      <div className="flex items-center gap-3 md:gap-4 shrink-0 hover:opacity-80 transition-opacity">
         {/* Brand */}
-        <Link href="/" className="flex items-center gap-2.5 no-underline group shrink-0">
+        <Link href="/" className="flex items-center gap-3 no-underline group shrink-0">
           <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200"
-            style={{ background: 'var(--brand-dim)', border: '1px solid var(--brand-border)' }}
+            className="w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg group-hover:scale-105"
+            style={{ 
+              background: 'linear-gradient(135deg, var(--brand-dim) 0%, transparent 100%)', 
+              border: '1px solid var(--brand-border)' 
+            }}
           >
-            <FiLayers style={{ color: 'var(--brand)' }} className="text-sm" />
+            <FiLayers style={{ color: 'var(--brand)' }} className="text-base md:text-lg drop-shadow-md" />
           </div>
-          <div className="leading-none">
-            <span className="block text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+          <div className="leading-tight">
+            <span className="block text-sm md:text-base font-extrabold tracking-tight transition-colors duration-300 group-hover:text-[var(--brand)]" style={{ color: 'var(--text-primary)' }}>
               HotelSphere
             </span>
             <span
-              className="hidden md:block text-[9px] uppercase tracking-[.2em]"
+              className="hidden md:block text-[9.5px] uppercase tracking-[.25em] font-semibold mt-0.5"
               style={{ color: 'var(--text-muted)' }}
             >
               Hospitality Platform
@@ -262,21 +267,25 @@ export default function Header() {
 
       {/* Desktop tab nav — only when authenticated */}
       {navLinks.length > 0 && (
-        <div className="hidden md:flex items-center gap-1">
+        <div className="hidden md:flex items-center gap-2 bg-[var(--bg-input)] rounded-full p-1 border border-[var(--border)] shadow-inner">
           {navLinks.map((link) => (
             <Link
               key={link.label}
               href={link.href}
-              className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-widest no-underline transition-all duration-200 px-2.5 py-1.5 rounded-md"
+              className="relative inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest no-underline transition-all duration-300 px-4 py-2 rounded-full overflow-hidden group"
               style={{
-                color: isActiveNav(link.href) ? 'var(--brand)' : 'var(--text-muted)',
-                background: isActiveNav(link.href) ? 'var(--brand-dim)' : 'transparent',
-                border: isActiveNav(link.href) ? '1px solid var(--brand-border)' : '1px solid transparent',
-                textDecoration: 'none',
+                color: isActiveNav(link.href) ? '#fff' : 'var(--text-muted)',
+                background: isActiveNav(link.href) ? 'var(--brand)' : 'transparent',
+                boxShadow: isActiveNav(link.href) ? '0 4px 15px -3px rgba(6, 182, 212, 0.4)' : 'none',
               }}
             >
-              <span className="shrink-0">{link.icon}</span>
+              <span className={`shrink-0 transition-transform duration-300 ${isActiveNav(link.href) ? 'scale-110' : 'group-hover:scale-110'}`}>
+                {link.icon}
+              </span>
               <span>{link.label}</span>
+              {!isActiveNav(link.href) && (
+                <span className="absolute inset-0 bg-[var(--brand-dim)] opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-full" />
+              )}
             </Link>
           ))}
         </div>

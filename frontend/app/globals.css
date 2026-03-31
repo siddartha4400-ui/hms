@@ -53,7 +53,7 @@
   --color-foreground: var(--text-primary);
   --color-brand:      var(--brand);
   --color-action:     var(--action);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
 }
 /* stylelint-enable */
@@ -138,11 +138,29 @@
     border-color     220ms ease,
     color            220ms ease,
     box-shadow       220ms ease;
+  box-sizing: border-box;
 }
 
-/* ── Base ─────────────────────────────────────────────────────────────────── */
-*, *::before, *::after {
-  box-sizing: border-box;
+html {
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+}
+
+/* ── Premium Custom Scrollbar ─────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--brand) 40%, transparent);
+  border-radius: 9999px;
+  border: 2px solid var(--bg-surface);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--brand);
 }
 
 body {

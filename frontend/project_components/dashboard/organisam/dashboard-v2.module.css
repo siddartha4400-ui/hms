@@ -1,14 +1,15 @@
 /* Ultra Premium Dashboard V2 Styles */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 .dashboardShell {
   min-height: 100vh;
-  background-color: var(--bg-base);
+  /* Clean gradient background for Dashboard */
   background-image: 
-    radial-gradient(circle at 15% 50%, rgba(var(--brand-rgb, 6, 182, 212), 0.03), transparent 25%),
-    radial-gradient(circle at 85% 30%, rgba(var(--action-rgb, 59, 130, 246), 0.04), transparent 25%);
+    radial-gradient(circle at 15% 50%, color-mix(in srgb, var(--brand) 3%, transparent), transparent 30%),
+    radial-gradient(circle at 85% 30%, color-mix(in srgb, var(--action) 4%, transparent), transparent 30%);
+  background-color: var(--bg-base);
   color: var(--text-primary);
-  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   letter-spacing: -0.01em;
 }
 
@@ -28,9 +29,9 @@
 
 .headerCard {
   border-radius: 1.5rem;
-  border: 1px solid rgba(var(--brand-rgb, 6, 182, 212), 0.15);
+  border: 1px solid color-mix(in srgb, var(--brand) 15%, transparent);
   padding: 1.5rem;
-  background: linear-gradient(145deg, rgba(var(--brand-rgb, 6, 182, 212), 0.05) 0%, rgba(var(--bg-surface-rgb, 255, 255, 255), 0.6) 100%);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--brand) 5%, transparent) 0%, color-mix(in srgb, var(--bg-surface) 60%, transparent) 100%);
   position: relative;
   overflow: hidden;
   box-shadow: 
@@ -55,7 +56,7 @@
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(var(--brand-rgb, 6, 182, 212), 0.3), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--brand) 30%, transparent), transparent);
 }
 
 .headerCard::after {
@@ -161,7 +162,7 @@
   cursor: pointer;
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 
-    0 10px 25px -5px rgba(var(--brand-rgb, 6, 182, 212), 0.4),
+    0 10px 25px -5px color-mix(in srgb, var(--brand) 40%, transparent),
     inset 0 1px 1px rgba(255, 255, 255, 0.2);
   position: relative;
   overflow: hidden;
@@ -179,7 +180,7 @@
 .actionButton:hover:not(:disabled) {
   transform: translateY(-3px);
   box-shadow: 
-    0 15px 35px -5px rgba(var(--brand-rgb, 6, 182, 212), 0.5),
+    0 15px 35px -5px color-mix(in srgb, var(--brand) 50%, transparent),
     inset 0 1px 1px rgba(255, 255, 255, 0.3);
 }
 
@@ -189,7 +190,7 @@
 
 .actionButton:active:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 5px 15px -5px rgba(var(--brand-rgb, 6, 182, 212), 0.5);
+  box-shadow: 0 5px 15px -5px color-mix(in srgb, var(--brand) 50%, transparent);
 }
 
 .actionButton:disabled {
@@ -230,38 +231,42 @@
 .tileLink {
   aspect-ratio: 1 / 1.05;
   width: 100%;
-  border-radius: 1.25rem;
-  border: 1px solid rgba(150, 150, 150, 0.15);
-  background: var(--bg-surface);
+  border-radius: 1.5rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 18%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--bg-surface) 90%, transparent) 0%, color-mix(in srgb, var(--bg-elevated) 60%, transparent) 100%);
   color: var(--text-primary);
   text-decoration: none;
   transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 4px 15px -5px rgba(0, 0, 0, 0.05);
+  box-shadow: 
+    0 10px 30px -10px rgba(0, 0, 0, 0.1),
+    inset 0 1px 1px rgba(255, 255, 255, 0.05);
   display: flex;
+  backdrop-filter: blur(20px);
 }
 
 @media (min-width: 768px) {
-  .tileLink { border-radius: 1.5rem; }
+  .tileLink { border-radius: 2rem; }
 }
 
 .tileLink::before {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(135deg, rgba(var(--brand-rgb, 6, 182, 212), 0.05) 0%, transparent 100%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 12%, transparent) 0%, transparent 100%);
   opacity: 0;
   transition: opacity 0.5s ease;
+  pointer-events: none;
 }
 
 .tileLink:hover {
-  transform: translateY(-8px) scale(1.02);
-  border-color: rgba(var(--brand-rgb, 6, 182, 212), 0.4);
-  background: var(--bg-elevated);
+  transform: translateY(-8px) scale(1.03);
+  border-color: color-mix(in srgb, var(--action) 45%, transparent);
   box-shadow: 
-    0 20px 40px -10px rgba(0, 0, 0, 0.08), 
-    0 0 20px rgba(var(--brand-rgb, 6, 182, 212), 0.15);
+    0 25px 50px -15px rgba(0, 0, 0, 0.15), 
+    0 0 35px color-mix(in srgb, var(--brand) 25%, transparent),
+    inset 0 1px 1px rgba(255, 255, 255, 0.2);
   z-index: 10;
 }
 
@@ -283,25 +288,28 @@
 
 .tileIconWrapper {
   display: flex;
-  height: 3rem;
-  width: 3rem;
+  height: 3.5rem;
+  width: 3.5rem;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
   border-radius: 1rem;
-  background: linear-gradient(135deg, rgba(var(--brand-rgb, 6, 182, 212), 0.15) 0%, rgba(var(--brand-rgb, 6, 182, 212), 0.05) 100%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 12%, transparent) 0%, color-mix(in srgb, var(--action) 8%, transparent) 100%);
   color: var(--brand);
-  border: 1px solid rgba(var(--brand-rgb, 6, 182, 212), 0.2);
+  border: 1px solid color-mix(in srgb, var(--brand) 25%, transparent);
   transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-  font-size: 1.25rem;
+  font-size: 1.5rem;
+  box-shadow: 0 4px 15px -5px rgba(0, 0, 0, 0.05);
 }
 
 .tileLink:hover .tileIconWrapper {
   background: linear-gradient(135deg, var(--brand) 0%, var(--action) 100%);
   color: #fff;
-  transform: scale(1.15) translateY(-5px);
+  transform: scale(1.15) translateY(-8px);
   border-color: transparent;
-  box-shadow: 0 10px 20px rgba(var(--brand-rgb, 6, 182, 212), 0.3);
+  box-shadow: 
+    0 15px 30px color-mix(in srgb, var(--brand) 40%, transparent),
+    inset 0 1px 1px rgba(255, 255, 255, 0.4);
 }
 
 @media (min-width: 640px) {
@@ -351,7 +359,7 @@
   border-width: 3px;
   border-style: solid;
   border-radius: 9999px;
-  border-color: rgba(var(--brand-rgb, 6, 182, 212), 0.2);
+  border-color: color-mix(in srgb, var(--brand) 20%, transparent);
   border-top-color: var(--brand);
   border-right-color: var(--action);
   animation: spin 1s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;

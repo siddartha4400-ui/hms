@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Geist_Mono } from "next/font/google";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./globals.css";
 import ClientLayout from "./ClientLayout";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
@@ -38,7 +38,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${inter.variable} ${geistMono.variable} antialiased`}>
         <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
