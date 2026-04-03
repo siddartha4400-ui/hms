@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@apollo/client/react';
-import { FiArrowLeft, FiBookOpen, FiGrid, FiHome, FiLayers, FiMap, FiMenu, FiX } from 'react-icons/fi';
+import { FiArrowLeft, FiBookOpen, FiGrid, FiHome, FiLayers, FiMenu, FiX } from 'react-icons/fi';
 import Link from 'next/link';
 import ThemeToggle from './ThemeToggle';
 import { GET_USER_PROFILE_QUERY } from '@/project_components/common-routes/graphql/operations';
@@ -82,7 +82,6 @@ function buildNavLinks(role: string | null, authed: boolean): NavLink[] {
         home,
         { label: 'My Bookings', href: '/my-bookings', icon: <FiBookOpen className="h-3.5 w-3.5" /> },
         { label: 'Dashboard', href: '/dashboard', icon: <FiGrid className="h-3.5 w-3.5" /> },
-        { label: 'Cities', href: '/cities', icon: <FiMap className="h-3.5 w-3.5" /> },
       ];
     case 'site_admin':
     case 'site_building_manager':

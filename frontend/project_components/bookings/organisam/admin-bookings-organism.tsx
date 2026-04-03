@@ -8,6 +8,7 @@ import {
   FiCalendar,
   FiCheckCircle,
   FiClock,
+  FiFilter,
   FiSlash,
   FiTrendingUp,
   FiUserCheck,
@@ -165,6 +166,9 @@ function propertyTypeFromHmsType(hmsType?: number | null): "pg" | "lodge" | null
 export default function AdminBookingsOrganism({ initialTab = "pending", monthlyOnly = false }: Props) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<ViewType>(initialTab);
+  const [mobileTabsOpen, setMobileTabsOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [selectedSubsite, setSelectedSubsite] = useState("all");
@@ -423,6 +427,16 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
          "Selected Subsite");
   const selectedBuildingLabel = selectedBuilding === "all" ? "All Buildings" : selectedBuilding;
 
+  async function handleRefresh() {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
+
   async function handleApprove(bookingReference: string) {
     setMessage("");
     setError("");
@@ -593,79 +607,132 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
             {monthlyOnly ? "Monthly Stay Console" : "Short-Stay Console"}
           </h1>
         </div>
-        <div className="flex w-full flex-wrap items-end gap-2 md:w-auto">
-          {isMainSiteHost ? (
-            <label className="w-full sm:min-w-[190px]">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Subsite</span>
-              <select
-                value={selectedSubsite}
-                onChange={(event) => setSelectedSubsite(event.target.value)}
-                className="form-select mobile-select-control h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm font-semibold tracking-wide text-slate-200 outline-none sm:text-xs"
-              >
-                <option value="all">All Subsites</option>
-                {subsiteOptions.map((subsite) => (
-                  <option key={subsite.id} value={String(subsite.id)}>
-                    {subsite.hmsDisplayName || subsite.hmsName || `Subsite ${subsite.id}`}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-          <label className="w-full sm:min-w-[160px]">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">City</span>
-            <select
-              value={selectedCity}
-              onChange={(event) => setSelectedCity(event.target.value)}
-              className="form-select mobile-select-control h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm font-semibold tracking-wide text-slate-200 outline-none sm:text-xs"
-            >
-              <option value="all">All Cities</option>
-              {cityOptions.map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-          </label>
-          <label className="w-full sm:min-w-[160px]">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Property Type</span>
-            <select
-              value={selectedPropertyType}
-              onChange={(event) => setSelectedPropertyType(event.target.value)}
-              disabled={Boolean(lockedPropertyType)}
-              className="form-select mobile-select-control h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm font-semibold tracking-wide text-slate-200 outline-none sm:text-xs"
-            >
-              {lockedPropertyType ? (
-                <option value={lockedPropertyType}>{lockedPropertyType === "lodge" ? "Hostel/Lodge" : lockedPropertyType.toUpperCase()}</option>
-              ) : (
-                <>
-                  <option value="all">All Types</option>
-                  {propertyTypeOptions.map((type) => (
-                    <option key={type} value={type}>{type === "lodge" ? "Hostel/Lodge" : type.toUpperCase()}</option>
-                  ))}
-                </>
-              )}
-            </select>
-          </label>
-          <label className="w-full sm:min-w-[180px]">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Building</span>
-            <select
-              value={selectedBuilding}
-              onChange={(event) => setSelectedBuilding(event.target.value)}
-              className="form-select mobile-select-control h-11 w-full rounded-xl border border-slate-700 bg-slate-900 px-3 text-sm font-semibold tracking-wide text-slate-200 outline-none sm:text-xs"
-            >
-              <option value="all">All Buildings</option>
-              {buildingOptions.map((name) => (
-                <option key={name} value={name}>{name}</option>
-              ))}
-            </select>
-          </label>
+        <div className="flex w-full flex-wrap items-center gap-2 md:w-auto">
           <button
             type="button"
-            onClick={() => refetch()}
-            className="h-10 w-full rounded-xl border border-slate-700 px-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-200 sm:w-auto"
+            onClick={() => setFiltersOpen((prev) => !prev)}
+            className="inline-flex h-10 items-center gap-2 rounded-full border border-slate-700 px-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-200 transition-colors duration-150 hover:border-slate-500 hover:bg-slate-800/70"
+            aria-expanded={filtersOpen}
+            aria-haspopup="dialog"
           >
-            Refresh
+            <FiFilter className="h-4 w-4" />
+            <span>{filtersOpen ? "Hide Filters" : "Filters"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="inline-flex h-10 items-center rounded-full border border-slate-700 px-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-200 transition-colors duration-150 hover:border-slate-500 hover:bg-slate-800/70 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            <span className={`inline-block h-2 w-2 rounded-full bg-slate-300 ${isRefreshing ? "opacity-100" : "opacity-60"}`} aria-hidden="true" />
+            <span className="ml-2">{isRefreshing ? "Refreshing" : "Refresh"}</span>
           </button>
         </div>
       </div>
+
+      {filtersOpen ? (
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 p-3 sm:items-center sm:p-4"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setFiltersOpen(false);
+            }
+          }}
+        >
+          <div className="w-full max-w-3xl rounded-2xl border border-slate-800 bg-slate-900 p-3 shadow-xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-200">Filters</h3>
+              <button
+                type="button"
+                onClick={() => setFiltersOpen(false)}
+                className="rounded-full border border-slate-700 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300 hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+              {isMainSiteHost ? (
+                <label className="w-full">
+                  <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Subsite</span>
+                  <select
+                    value={selectedSubsite}
+                    onChange={(event) => setSelectedSubsite(event.target.value)}
+                    className="form-select mobile-select-control h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 text-xs font-semibold tracking-wide text-slate-200 outline-none"
+                  >
+                    <option value="all">All Subsites</option>
+                    {subsiteOptions.map((subsite) => (
+                      <option key={subsite.id} value={String(subsite.id)}>
+                        {subsite.hmsDisplayName || subsite.hmsName || `Subsite ${subsite.id}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              <label className="w-full">
+                <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">City</span>
+                <select
+                  value={selectedCity}
+                  onChange={(event) => setSelectedCity(event.target.value)}
+                  className="form-select mobile-select-control h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 text-xs font-semibold tracking-wide text-slate-200 outline-none"
+                >
+                  <option value="all">All Cities</option>
+                  {cityOptions.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="w-full">
+                <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Property Type</span>
+                <select
+                  value={selectedPropertyType}
+                  onChange={(event) => setSelectedPropertyType(event.target.value)}
+                  disabled={Boolean(lockedPropertyType)}
+                  className="form-select mobile-select-control h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 text-xs font-semibold tracking-wide text-slate-200 outline-none"
+                >
+                  {lockedPropertyType ? (
+                    <option value={lockedPropertyType}>{lockedPropertyType === "lodge" ? "Hostel/Lodge" : lockedPropertyType.toUpperCase()}</option>
+                  ) : (
+                    <>
+                      <option value="all">All Types</option>
+                      {propertyTypeOptions.map((type) => (
+                        <option key={type} value={type}>{type === "lodge" ? "Hostel/Lodge" : type.toUpperCase()}</option>
+                      ))}
+                    </>
+                  )}
+                </select>
+              </label>
+
+              <label className="w-full">
+                <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Building</span>
+                <select
+                  value={selectedBuilding}
+                  onChange={(event) => setSelectedBuilding(event.target.value)}
+                  className="form-select mobile-select-control h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 text-xs font-semibold tracking-wide text-slate-200 outline-none"
+                >
+                  <option value="all">All Buildings</option>
+                  {buildingOptions.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              </label>
+
+            </div>
+
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setFiltersOpen(false)}
+                className="rounded-full bg-emerald-700 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-white hover:bg-emerald-600"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="-mt-2 mb-4 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.12em] text-slate-400">
         {isMainSiteHost ? <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2.5 py-1">{selectedSubsiteLabel}</span> : null}
@@ -675,23 +742,63 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
       </div>
 
       <div className="mb-6 flex flex-wrap gap-2">
-        {TABS.map((tab) => (
+        <div
+          className="relative w-full md:hidden"
+          onBlur={(event) => {
+            const nextFocusTarget = event.relatedTarget as Node | null;
+            if (!nextFocusTarget || !event.currentTarget.contains(nextFocusTarget)) {
+              setMobileTabsOpen(false);
+            }
+          }}
+        >
           <button
-            key={tab.key}
             type="button"
-            onClick={() => setActiveTab(tab.key)}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition ${
-              activeTab === tab.key ? "bg-emerald-700 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-            }`}
-            style={{ textDecoration: "none" }}
+            onClick={() => setMobileTabsOpen((prev) => !prev)}
+            className="flex w-full items-center justify-between rounded-full border border-slate-700 bg-slate-900 px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-200 transition-colors duration-150 hover:border-slate-500 hover:bg-slate-800/80"
+            aria-expanded={mobileTabsOpen}
+            aria-haspopup="listbox"
           >
-            <span className="shrink-0">{tab.icon}</span>
-            <span>{tab.label}</span>
+            <span>{TABS.find((tab) => tab.key === activeTab)?.label || "Select"}</span>
+            <span className="text-slate-400">▼</span>
           </button>
-        ))}
+          {mobileTabsOpen ? (
+            <div className="absolute z-10 mt-2 w-full rounded-3xl border border-slate-700 bg-slate-900 p-1 shadow-lg">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => {
+                    setActiveTab(tab.key);
+                    setMobileTabsOpen(false);
+                  }}
+                  className={`w-full rounded-full px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.16em] transition-colors duration-150 ${activeTab === tab.key ? "bg-emerald-700 text-white" : "text-slate-300 hover:bg-slate-800"}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="hidden flex-wrap gap-2 md:flex">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition ${
+                activeTab === tab.key ? "bg-emerald-700 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+              }`}
+              style={{ textDecoration: "none" }}
+            >
+              <span className="shrink-0">{tab.icon}</span>
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {loading ? (
+      {loading && !data?.listBookings ? (
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-8 text-sm text-slate-300">Loading bookings...</div>
       ) : (
         <BookingListView

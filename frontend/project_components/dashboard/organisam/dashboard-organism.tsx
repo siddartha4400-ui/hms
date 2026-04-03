@@ -217,6 +217,14 @@ export default function DashboardOrganism() {
         icon: <FiMapPin className="h-3 w-3 sm:h-4 sm:w-4" />,
       });
     }
+
+    if (role === 'root_admin') {
+      tiles.push({
+        title: 'Cities Management',
+        href: '/cities',
+        icon: <FiMapPin className="h-3 w-3 sm:h-4 sm:w-4" />,
+      });
+    }
   }
 
   if (tiles.length > 0) {

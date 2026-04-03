@@ -33,6 +33,7 @@ services:
     volumes:
       - ./backend:/app
       - static_data:/app/staticfiles
+      - ./backend/media:/app/media 
     ports:
       - "8000:8000"
     environment:
@@ -75,6 +76,7 @@ services:
       - ./nginx/${NGINX_CONF_FILE:-default.local.conf}:/etc/nginx/templates/default.conf.template:ro
       - ./ssl:/etc/nginx/ssl:ro
       - static_data:/var/www/backend_static:ro
+      - ./backend/media:/var/www/media:ro  
 
 volumes:
   postgres_data:
