@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { ReactNode } from "react";
+import { FiEye, FiX } from "react-icons/fi";
 import { ReusableAccordion } from "@/components";
 import { normalizeBackendAssetUrl } from "@/lib/backend-url";
-
 import { formatDateDDMMYYYY } from "../utils/date";
 
 export type BookingListItem = {
@@ -43,20 +43,20 @@ type Props = {
   actionSlot?: (booking: BookingListItem) => ReactNode;
 };
 
-function statusClasses(status: string): string {
+function getStatusStyle(status: string): React.CSSProperties {
   switch (status) {
     case "pending":
-      return "bg-amber-50 text-amber-700 border border-amber-200";
+      return { background: "rgba(245,158,11,0.14)", color: "var(--warning)", border: "1px solid rgba(245,158,11,0.28)" };
     case "confirmed":
-      return "bg-emerald-50 text-emerald-700 border border-emerald-200";
+      return { background: "rgba(16,185,129,0.13)", color: "var(--positive)", border: "1px solid rgba(16,185,129,0.28)" };
     case "checked_in":
-      return "bg-sky-50 text-sky-700 border border-sky-200";
+      return { background: "rgba(6,182,212,0.12)", color: "var(--brand-light)", border: "1px solid rgba(6,182,212,0.25)" };
     case "rejected":
-      return "bg-rose-50 text-rose-700 border border-rose-200";
+      return { background: "rgba(239,68,68,0.12)", color: "var(--danger)", border: "1px solid rgba(239,68,68,0.25)" };
     case "cancelled":
-      return "bg-slate-100 text-slate-700 border border-slate-200";
+      return { background: "var(--bg-elevated)", color: "var(--text-muted)", border: "1px solid var(--border-strong)" };
     default:
-      return "bg-indigo-50 text-indigo-700 border border-indigo-200";
+      return { background: "rgba(99,102,241,0.12)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.25)" };
   }
 }
 
@@ -75,59 +75,174 @@ export default function BookingListView({ bookings, emptyMessage, actionSlot }: 
     id: booking.id,
     title: (
       <>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">{booking.hmsDisplayName}</p>
-        <h3 className="mt-0.5 text-lg font-semibold text-slate-900">{booking.buildingName}</h3>
+        <p
+          className="text-[10px] font-semibold uppercase tracking-[0.2em]"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {booking.hmsDisplayName}
+        </p>
+        <h3
+          className="mt-0.5 text-base font-bold"
+          style={{ color: "var(--text-primary)" }}
+        >
+          {booking.buildingName}
+        </h3>
       </>
     ),
     subtitle:
       booking.inventoryType === "bed"
-        ? `Bed ${booking.bedNumber || "-"} • Room ${booking.roomNumber || "-"}`
-        : `Room ${booking.roomNumber || "-"}`,
+        ? `Bed ${booking.bedNumber || "–"} · Room ${booking.roomNumber || "–"}`
+        : `Room ${booking.roomNumber || "–"}`,
     badge: (
-      <div className="flex min-w-[118px] flex-col items-end gap-1.5">
-        <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${statusClasses(booking.status)}`}>
-          {booking.status}
+      <div className="flex min-w-[110px] flex-col items-end gap-1.5">
+        <span
+          className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em]"
+          style={getStatusStyle(booking.status)}
+        >
+          {booking.status.replace(/_/g, " ")}
         </span>
-        <div className="rounded-lg bg-slate-50 px-2.5 py-1 text-right">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">Ref</p>
-          <p className="text-xs font-semibold text-slate-900">{booking.bookingReference}</p>
+        <div
+          className="rounded-lg px-2.5 py-1 text-right"
+          style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+        >
+          <p
+            className="text-[9px] font-semibold uppercase tracking-[0.15em]"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Ref
+          </p>
+          <p
+            className="text-[11px] font-bold"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {booking.bookingReference}
+          </p>
         </div>
       </div>
     ),
     content: (
       <>
-        <div className="grid gap-1.5 text-xs text-slate-600 md:grid-cols-2 lg:grid-cols-4">
-          <p>Check-in: <span className="font-medium text-slate-900">{formatDateDDMMYYYY(booking.checkIn)}</span></p>
-          <p>Check-out: <span className="font-medium text-slate-900">{formatDateDDMMYYYY(booking.checkOut)}</span></p>
-          <p>Booked on: <span className="font-medium text-slate-900">{formatDateDDMMYYYY(booking.createdAtUtc || "")}</span></p>
-          <p>Guests: <span className="font-medium text-slate-900">{booking.guestCount}</span></p>
+        {/* Core booking info */}
+        <div
+          className="grid gap-1.5 rounded-xl px-3 py-2.5 text-xs"
+          style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}
+        >
+          <div className="grid grid-cols-2 gap-1.5 md:grid-cols-4">
+            <p>
+              Check-in:{" "}
+              <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                {formatDateDDMMYYYY(booking.checkIn)}
+              </span>
+            </p>
+            <p>
+              Check-out:{" "}
+              <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                {formatDateDDMMYYYY(booking.checkOut)}
+              </span>
+            </p>
+            <p>
+              Booked on:{" "}
+              <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                {formatDateDDMMYYYY(booking.createdAtUtc || "")}
+              </span>
+            </p>
+            <p>
+              Guests:{" "}
+              <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                {booking.guestCount}
+              </span>
+            </p>
+          </div>
         </div>
 
+        {/* Requester info */}
         {booking.bookedByName || booking.bookedByEmail || booking.primaryGuestMobile ? (
-          <div className="mt-3 grid gap-1.5 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600 md:grid-cols-3">
-            <p>Requester: <span className="font-medium text-slate-900">{booking.bookedByName || "-"}</span></p>
-            <p>Email: <span className="font-medium text-slate-900">{booking.bookedByEmail || "-"}</span></p>
-            <p>Mobile: <span className="font-medium text-slate-900">{booking.primaryGuestMobile || "-"}</span></p>
+          <div
+            className="mt-2.5 grid gap-1.5 rounded-xl px-3 py-2.5 text-xs md:grid-cols-3"
+            style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}
+          >
+            <p>
+              Requester:{" "}
+              <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                {booking.bookedByName || "–"}
+              </span>
+            </p>
+            <p>
+              Email:{" "}
+              <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                {booking.bookedByEmail || "–"}
+              </span>
+            </p>
+            <p>
+              Mobile:{" "}
+              <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                {booking.primaryGuestMobile || "–"}
+              </span>
+            </p>
           </div>
         ) : null}
 
+        {/* Special request / comments */}
         {booking.specialRequest ? (
-          <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Comments</p>
+          <div
+            className="mt-2.5 rounded-xl px-3 py-2.5 text-xs"
+            style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}
+          >
+            <p
+              className="text-[10px] font-bold uppercase tracking-[0.16em]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Comments
+            </p>
             <p className="mt-1 whitespace-pre-wrap">{booking.specialRequest}</p>
           </div>
         ) : null}
 
+        {/* Guest details */}
         {(booking.guests || []).length > 0 ? (
-          <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">Guest Details</p>
-            <div className="mt-2 grid gap-1.5 text-xs text-slate-600 md:grid-cols-2">
+          <div
+            className="mt-2.5 rounded-xl px-3 py-2.5"
+            style={{ background: "var(--bg-elevated)" }}
+          >
+            <p
+              className="text-[10px] font-bold uppercase tracking-[0.16em]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Guest Details
+            </p>
+            <div className="mt-2 grid gap-1.5 text-xs md:grid-cols-2">
               {(booking.guests || []).map((guest, guestIndex) => (
-                <div key={guest.id || guestIndex} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
-                  <p>Name: <span className="font-medium text-slate-900">{guest.fullName || "-"}</span></p>
-                  <p>Mobile: <span className="font-medium text-slate-900">{guest.mobileNumber || "-"}</span></p>
-                  <div className="mt-1 flex items-center justify-between gap-2">
-                    <p>Aadhaar: <span className="font-medium text-slate-900">{guest.aadhaarAttachmentId ? "Uploaded" : "-"}</span></p>
+                <div
+                  key={guest.id || guestIndex}
+                  className="rounded-xl border px-3 py-2.5"
+                  style={{
+                    borderColor: "var(--border)",
+                    background: "var(--bg-surface)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  <p>
+                    Name:{" "}
+                    <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                      {guest.fullName || "–"}
+                    </span>
+                  </p>
+                  <p className="mt-0.5">
+                    Mobile:{" "}
+                    <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                      {guest.mobileNumber || "–"}
+                    </span>
+                  </p>
+                  <div className="mt-1.5 flex items-center justify-between gap-2">
+                    <p>
+                      Aadhaar:{" "}
+                      <span
+                        className="font-semibold"
+                        style={{ color: guest.aadhaarAttachmentId ? "var(--positive)" : "var(--text-muted)" }}
+                      >
+                        {guest.aadhaarAttachmentId ? "Uploaded" : "–"}
+                      </span>
+                    </p>
                     {guest.aadhaarAttachmentUrl ? (
                       <button
                         type="button"
@@ -137,9 +252,15 @@ export default function BookingListView({ bookings, emptyMessage, actionSlot }: 
                             url: normalizeBackendAssetUrl(guest.aadhaarAttachmentUrl || ""),
                           })
                         }
-                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-700"
+                        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] transition-all"
+                        style={{
+                          background: "var(--brand-dim)",
+                          color: "var(--brand-light)",
+                          border: "1px solid var(--brand-border)",
+                        }}
                       >
-                        View Aadhaar
+                        <FiEye className="h-3 w-3" />
+                        View
                       </button>
                     ) : null}
                   </div>
@@ -149,12 +270,26 @@ export default function BookingListView({ bookings, emptyMessage, actionSlot }: 
           </div>
         ) : null}
 
-        <div className="mt-3 flex flex-col gap-2.5 border-t border-black/5 pt-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-xs text-slate-600">{booking.cityName} • {booking.paymentMethod.replaceAll("_", " ").toUpperCase()}</p>
+        {/* Footer: city, payment, actions, amount */}
+        <div
+          className="mt-3 flex flex-col gap-3 border-t pt-3 md:flex-row md:items-center md:justify-between"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span
+              className="text-xs"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              {booking.cityName} · {booking.paymentMethod.replaceAll("_", " ").toUpperCase()}
+            </span>
             {actionSlot ? actionSlot(booking) : null}
           </div>
-          <p className="text-base font-semibold text-slate-900">{formatCurrency(booking.totalAmount)}</p>
+          <p
+            className="text-base font-bold"
+            style={{ color: "var(--brand-light)" }}
+          >
+            {formatCurrency(booking.totalAmount)}
+          </p>
         </div>
       </>
     ),
@@ -166,39 +301,60 @@ export default function BookingListView({ bookings, emptyMessage, actionSlot }: 
     <>
       <ReusableAccordion items={accordionItems} emptyMessage={emptyMessage} />
 
+      {/* Aadhaar preview modal */}
       {aadhaarPreview ? (
         <div
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/55 p-4"
+          className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)" }}
           onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              setAadhaarPreview(null);
-            }
+            if (event.target === event.currentTarget) setAadhaarPreview(null);
           }}
         >
-          <div className="w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
-              <p className="text-sm font-semibold text-slate-100">Aadhaar preview - {aadhaarPreview.name}</p>
+          <div
+            className="w-full max-w-3xl overflow-hidden rounded-2xl shadow-2xl"
+            style={{
+              background: "var(--bg-surface)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <div
+              className="flex items-center justify-between px-4 py-3"
+              style={{ borderBottom: "1px solid var(--border)" }}
+            >
+              <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                Aadhaar preview — {aadhaarPreview.name}
+              </p>
               <button
                 type="button"
                 onClick={() => setAadhaarPreview(null)}
-                className="rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200"
+                className="flex h-8 w-8 items-center justify-center rounded-xl transition-all"
+                style={{
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-muted)",
+                }}
+                aria-label="Close"
               >
-                Close
+                <FiX className="h-4 w-4" />
               </button>
             </div>
-
-            <div className="max-h-[75vh] overflow-auto bg-slate-900 p-3">
+            <div
+              className="max-h-[75vh] overflow-auto p-3"
+              style={{ background: "var(--bg-elevated)" }}
+            >
               {isPdf ? (
                 <iframe
                   title="Aadhaar PDF preview"
                   src={aadhaarPreview.url}
-                  className="h-[70vh] w-full rounded-lg border border-slate-700 bg-white"
+                  className="h-[70vh] w-full rounded-xl"
+                  style={{ border: "1px solid var(--border)", background: "var(--bg-surface)" }}
                 />
               ) : (
                 <img
                   src={aadhaarPreview.url}
                   alt={`Aadhaar for ${aadhaarPreview.name}`}
-                  className="mx-auto max-h-[70vh] w-auto max-w-full rounded-lg border border-slate-700 bg-black/20 object-contain"
+                  className="mx-auto max-h-[70vh] w-auto max-w-full rounded-xl object-contain"
+                  style={{ border: "1px solid var(--border)" }}
                 />
               )}
             </div>

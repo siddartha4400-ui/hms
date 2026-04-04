@@ -385,6 +385,74 @@ body {
   animation: daySelectedPop 220ms cubic-bezier(.2,.8,.2,1);
 }
 
+/* ── Custom Select Dropdown ──────────────────────────────────────────────── */
+@keyframes selectDropIn {
+  0%   { opacity: 0; transform: translateY(-8px) scale(0.96); filter: blur(2px); }
+  100% { opacity: 1; transform: translateY(0)    scale(1);    filter: blur(0); }
+}
+
+@keyframes backdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes sheetUp {
+  from { transform: translateY(100%); opacity: 0.6; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+@keyframes floatY {
+  0%, 100% { transform: translateY(0px);  }
+  50%       { transform: translateY(-8px); }
+}
+
+@keyframes staggerIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.themed-select-trigger {
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.themed-select-trigger:hover:not(:disabled) {
+  border-color: rgba(6, 182, 212, 0.35) !important;
+  background: rgba(6, 182, 212, 0.05) !important;
+}
+
+.themed-select-option {
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.themed-select-option:hover {
+  background: rgba(6, 182, 212, 0.10) !important;
+  color: var(--brand-light) !important;
+}
+
+/* Calendar nav buttons */
+.tdp-nav-btn {
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+.tdp-nav-btn:hover {
+  background: var(--brand-dim) !important;
+  border-color: var(--brand-border) !important;
+  color: var(--brand-light) !important;
+}
+
+.themed-select-option:hover {
+  background: rgba(6, 182, 212, 0.10) !important;
+  color: var(--brand-light) !important;
+}
+
 /* ── Surface Cards ────────────────────────────────────────────────────────── */
 .card-surface {
   background: var(--bg-surface);
@@ -914,3 +982,107 @@ select optgroup {
   background: var(--bg-elevated);
   color: var(--text-primary);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SHARED BOOKING TABS — scrollable horizontal bar for all screen sizes
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.booking-tabs-bar {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 0.25rem;
+  /* Allow tabs to escape container padding on mobile */
+  margin-left: -1rem;
+  margin-right: -1rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.booking-tabs-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.booking-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.875rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border: 1px solid;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  /* Comfortable touch target */
+  min-height: 2.25rem;
+}
+
+.booking-tab:hover {
+  border-color: rgba(6, 182, 212, 0.35) !important;
+  background: rgba(6, 182, 212, 0.08) !important;
+  color: var(--brand-light) !important;
+}
+
+/* ── Slide-up animation for modals (desktop) ── */
+@keyframes slideUpModal {
+  from { opacity: 0; transform: translateY(24px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   IMPROVED INPUT & TEXTAREA — rounded, focus ring, mobile-friendly
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+input[type="text"],
+input[type="email"],
+input[type="tel"],
+input[type="number"],
+input[type="password"],
+input[type="search"],
+input[type="url"],
+textarea {
+  border-radius: 1rem;
+  transition: border-color 180ms ease, box-shadow 200ms ease, background 180ms ease;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="tel"]:focus,
+input[type="number"]:focus,
+input[type="password"]:focus,
+input[type="search"]:focus,
+input[type="url"]:focus,
+textarea:focus {
+  outline: none;
+  border-color: rgba(6, 182, 212, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.14);
+}
+
+@media (max-width: 640px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="password"],
+  input[type="search"],
+  input[type="url"],
+  textarea {
+    font-size: 16px !important;
+    min-height: 2.875rem;
+  }
+}
+
+textarea {
+  resize: vertical;
+  min-height: 6rem;
+  line-height: 1.6;
+}
+

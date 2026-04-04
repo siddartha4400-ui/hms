@@ -9,9 +9,11 @@ import {
   FiCheckCircle,
   FiClock,
   FiFilter,
+  FiRefreshCw,
   FiSlash,
   FiTrendingUp,
   FiUserCheck,
+  FiX,
   FiXCircle,
 } from "react-icons/fi";
 
@@ -593,72 +595,112 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
                       : "No cancelled or rejected bookings found.";
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
-      {error ? <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
-      {listError ? <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{listError.message}</div> : null}
-      {message ? <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div> : null}
+    <div
+      className="min-h-screen"
+      style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}
+    >
+    <div className="mx-auto max-w-7xl px-4 py-6 md:px-8 lg:px-10">
 
-      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      {/* ── Status banners ── */}
+      {error ? (
+        <div className="mb-4 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: "rgba(239,68,68,0.28)", background: "rgba(239,68,68,0.10)", color: "var(--danger)" }}>
+          {error}
+        </div>
+      ) : null}
+      {listError ? (
+        <div className="mb-4 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: "rgba(239,68,68,0.28)", background: "rgba(239,68,68,0.10)", color: "var(--danger)" }}>
+          {listError.message}
+        </div>
+      ) : null}
+      {message ? (
+        <div className="mb-4 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: "rgba(16,185,129,0.28)", background: "rgba(16,185,129,0.10)", color: "var(--positive)" }}>
+          {message}
+        </div>
+      ) : null}
+
+      {/* ── Page header ── */}
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+          <p className="text-xs font-bold uppercase tracking-[0.24em]" style={{ color: "var(--brand)" }}>
             {monthlyOnly ? "Admin Side Booking" : "Admin Short-Stay Booking"}
           </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-[-0.03em] text-slate-100">
+          <h1 className="mt-1.5 text-2xl font-extrabold tracking-tight md:text-3xl" style={{ color: "var(--text-primary)" }}>
             {monthlyOnly ? "Monthly Stay Console" : "Short-Stay Console"}
           </h1>
         </div>
-        <div className="flex w-full flex-wrap items-center gap-2 md:w-auto">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setFiltersOpen((prev) => !prev)}
-            className="inline-flex h-10 items-center gap-2 rounded-full border border-slate-700 px-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-200 transition-colors duration-150 hover:border-slate-500 hover:bg-slate-800/70"
+            className="inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-bold uppercase tracking-[0.14em] transition-all"
+            style={filtersOpen
+              ? { background: "var(--brand-dim)", border: "1px solid var(--brand-border)", color: "var(--brand-light)" }
+              : { background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-secondary)" }
+            }
             aria-expanded={filtersOpen}
-            aria-haspopup="dialog"
           >
-            <FiFilter className="h-4 w-4" />
-            <span>{filtersOpen ? "Hide Filters" : "Filters"}</span>
+            <FiFilter className="h-3.5 w-3.5" />
+            Filters
           </button>
           <button
             type="button"
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="inline-flex h-10 items-center rounded-full border border-slate-700 px-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-200 transition-colors duration-150 hover:border-slate-500 hover:bg-slate-800/70 disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-bold uppercase tracking-[0.14em] transition-all disabled:cursor-not-allowed disabled:opacity-60"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
           >
-            <span className={`inline-block h-2 w-2 rounded-full bg-slate-300 ${isRefreshing ? "opacity-100" : "opacity-60"}`} aria-hidden="true" />
-            <span className="ml-2">{isRefreshing ? "Refreshing" : "Refresh"}</span>
+            <FiRefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+            {isRefreshing ? "Refreshing…" : "Refresh"}
           </button>
         </div>
       </div>
 
+      {/* ── Filter modal ── */}
       {filtersOpen ? (
         <div
-          className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 p-3 sm:items-center sm:p-4"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              setFiltersOpen(false);
-            }
-          }}
+          className="fixed inset-0 z-40 flex items-end justify-center p-0 sm:items-center sm:p-4"
+          style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)", animation: "backdropIn 0.2s ease both" }}
+          onClick={(event) => { if (event.target === event.currentTarget) setFiltersOpen(false); }}
         >
-          <div className="w-full max-w-3xl rounded-2xl border border-slate-800 bg-slate-900 p-3 shadow-xl">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-200">Filters</h3>
+          <div
+            className="w-full max-w-2xl overflow-hidden rounded-[1.75rem] rounded-b-none p-5 shadow-2xl sm:rounded-[1.75rem]"
+            style={{
+              background: "var(--bg-surface)",
+              border: "1px solid rgba(6,182,212,0.18)",
+              animation: "sheetUp 0.3s cubic-bezier(0.16,1,0.3,1) both",
+            }}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
+                  Filter bookings
+                </p>
+                <h3 className="mt-0.5 text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+                  Filters
+                </h3>
+              </div>
               <button
                 type="button"
                 onClick={() => setFiltersOpen(false)}
-                className="rounded-full border border-slate-700 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300 hover:bg-slate-800"
+                className="flex h-9 w-9 items-center justify-center rounded-xl transition-all"
+                style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
+                aria-label="Close filters"
               >
-                Close
+                <FiX className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               {isMainSiteHost ? (
-                <label className="w-full">
-                  <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Subsite</span>
+                <label className="col-span-2 w-full md:col-span-1">
+                  <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>
+                    Subsite
+                  </span>
                   <select
                     value={selectedSubsite}
                     onChange={(event) => setSelectedSubsite(event.target.value)}
-                    className="form-select mobile-select-control h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 text-xs font-semibold tracking-wide text-slate-200 outline-none"
+                    className="form-select mobile-select-control h-10 w-full rounded-xl px-3 text-xs font-semibold outline-none"
+                    style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
                   >
                     <option value="all">All Subsites</option>
                     {subsiteOptions.map((subsite) => (
@@ -671,11 +713,14 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
               ) : null}
 
               <label className="w-full">
-                <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">City</span>
+                <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>
+                  City
+                </span>
                 <select
                   value={selectedCity}
                   onChange={(event) => setSelectedCity(event.target.value)}
-                  className="form-select mobile-select-control h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 text-xs font-semibold tracking-wide text-slate-200 outline-none"
+                  className="form-select mobile-select-control h-10 w-full rounded-xl px-3 text-xs font-semibold outline-none"
+                  style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
                 >
                   <option value="all">All Cities</option>
                   {cityOptions.map((name) => (
@@ -685,20 +730,23 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
               </label>
 
               <label className="w-full">
-                <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Property Type</span>
+                <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>
+                  Type
+                </span>
                 <select
                   value={selectedPropertyType}
                   onChange={(event) => setSelectedPropertyType(event.target.value)}
                   disabled={Boolean(lockedPropertyType)}
-                  className="form-select mobile-select-control h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 text-xs font-semibold tracking-wide text-slate-200 outline-none"
+                  className="form-select mobile-select-control h-10 w-full rounded-xl px-3 text-xs font-semibold outline-none"
+                  style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
                 >
                   {lockedPropertyType ? (
-                    <option value={lockedPropertyType}>{lockedPropertyType === "lodge" ? "Hostel/Lodge" : lockedPropertyType.toUpperCase()}</option>
+                    <option value={lockedPropertyType}>{lockedPropertyType === "lodge" ? "Lodge" : lockedPropertyType.toUpperCase()}</option>
                   ) : (
                     <>
                       <option value="all">All Types</option>
                       {propertyTypeOptions.map((type) => (
-                        <option key={type} value={type}>{type === "lodge" ? "Hostel/Lodge" : type.toUpperCase()}</option>
+                        <option key={type} value={type}>{type === "lodge" ? "Lodge" : type.toUpperCase()}</option>
                       ))}
                     </>
                   )}
@@ -706,11 +754,14 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
               </label>
 
               <label className="w-full">
-                <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Building</span>
+                <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>
+                  Building
+                </span>
                 <select
                   value={selectedBuilding}
                   onChange={(event) => setSelectedBuilding(event.target.value)}
-                  className="form-select mobile-select-control h-9 w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 text-xs font-semibold tracking-wide text-slate-200 outline-none"
+                  className="form-select mobile-select-control h-10 w-full rounded-xl px-3 text-xs font-semibold outline-none"
+                  style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
                 >
                   <option value="all">All Buildings</option>
                   {buildingOptions.map((name) => (
@@ -718,14 +769,14 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
                   ))}
                 </select>
               </label>
-
             </div>
 
-            <div className="mt-2 flex justify-end">
+            <div className="mt-4 flex justify-end">
               <button
                 type="button"
                 onClick={() => setFiltersOpen(false)}
-                className="rounded-full bg-emerald-700 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-white hover:bg-emerald-600"
+                className="rounded-xl px-5 py-2.5 text-xs font-bold uppercase tracking-[0.16em] text-white transition-all hover:opacity-90"
+                style={{ background: "linear-gradient(135deg, var(--brand), var(--action))" }}
               >
                 Apply Filters
               </button>
@@ -734,72 +785,66 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
         </div>
       ) : null}
 
-      <div className="-mt-2 mb-4 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.12em] text-slate-400">
-        {isMainSiteHost ? <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2.5 py-1">{selectedSubsiteLabel}</span> : null}
-        <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2.5 py-1">{selectedCityLabel}</span>
-        <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2.5 py-1">{selectedPropertyTypeLabel}</span>
-        <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2.5 py-1">{selectedBuildingLabel}</span>
+      {/* ── Active filter chips ── */}
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        {isMainSiteHost ? (
+          <span
+            className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
+          >
+            {selectedSubsiteLabel}
+          </span>
+        ) : null}
+        {[selectedCityLabel, selectedPropertyTypeLabel, selectedBuildingLabel].map((label) => (
+          <span
+            key={label}
+            className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
+          >
+            {label}
+          </span>
+        ))}
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-2">
-        <div
-          className="relative w-full md:hidden"
-          onBlur={(event) => {
-            const nextFocusTarget = event.relatedTarget as Node | null;
-            if (!nextFocusTarget || !event.currentTarget.contains(nextFocusTarget)) {
-              setMobileTabsOpen(false);
-            }
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setMobileTabsOpen((prev) => !prev)}
-            className="flex w-full items-center justify-between rounded-full border border-slate-700 bg-slate-900 px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-200 transition-colors duration-150 hover:border-slate-500 hover:bg-slate-800/80"
-            aria-expanded={mobileTabsOpen}
-            aria-haspopup="listbox"
-          >
-            <span>{TABS.find((tab) => tab.key === activeTab)?.label || "Select"}</span>
-            <span className="text-slate-400">▼</span>
-          </button>
-          {mobileTabsOpen ? (
-            <div className="absolute z-10 mt-2 w-full rounded-3xl border border-slate-700 bg-slate-900 p-1 shadow-lg">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => {
-                    setActiveTab(tab.key);
-                    setMobileTabsOpen(false);
-                  }}
-                  className={`w-full rounded-full px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.16em] transition-colors duration-150 ${activeTab === tab.key ? "bg-emerald-700 text-white" : "text-slate-300 hover:bg-slate-800"}`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="hidden flex-wrap gap-2 md:flex">
-          {TABS.map((tab) => (
+      {/* ── Scrollable horizontal tab bar (works on all screen sizes) ── */}
+      <div className="booking-tabs-bar mb-6">
+        {TABS.map((tab) => {
+          const isActive = activeTab === tab.key;
+          return (
             <button
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key)}
-              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition ${
-                activeTab === tab.key ? "bg-emerald-700 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-              }`}
-              style={{ textDecoration: "none" }}
+              className="booking-tab"
+              style={
+                isActive
+                  ? {
+                      background: "var(--brand)",
+                      color: "#fff",
+                      borderColor: "transparent",
+                      boxShadow: "0 4px 14px -4px rgba(6,182,212,0.5)",
+                    }
+                  : {
+                      background: "var(--bg-elevated)",
+                      color: "var(--text-secondary)",
+                      borderColor: "var(--border)",
+                    }
+              }
             >
               <span className="shrink-0">{tab.icon}</span>
               <span>{tab.label}</span>
             </button>
-          ))}
-        </div>
+          );
+        })}
       </div>
 
       {loading && !data?.listBookings ? (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-8 text-sm text-slate-300">Loading bookings...</div>
+        <div
+          className="rounded-2xl border p-8 text-center text-sm"
+          style={{ borderColor: "var(--border)", background: "var(--bg-surface)", color: "var(--text-secondary)" }}
+        >
+          Loading bookings…
+        </div>
       ) : (
         <BookingListView
           bookings={bookings}
@@ -812,7 +857,8 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
                       type="button"
                       onClick={() => handleApprove(booking.bookingReference)}
                       disabled={loadingActions}
-                      className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60"
+                      className="rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60 transition-opacity"
+                        style={{ background: "var(--positive)" }}
                     >
                       Approve
                     </button>
@@ -820,7 +866,8 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
                       type="button"
                       onClick={() => handleReject(booking.bookingReference)}
                       disabled={loadingActions}
-                      className="rounded-xl bg-rose-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60"
+                      className="rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60 transition-opacity"
+                        style={{ background: "var(--danger)" }}
                     >
                       Reject
                     </button>
@@ -833,7 +880,8 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
                         type="button"
                         onClick={() => handleCheckIn(booking.bookingReference)}
                         disabled={loadingActions}
-                        className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60"
+                        className="rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60 transition-opacity"
+                        style={{ background: "var(--positive)" }}
                       >
                         Check In
                       </button>
@@ -841,7 +889,8 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
                         type="button"
                         onClick={() => handleCancel(booking.bookingReference)}
                         disabled={loadingActions}
-                        className="rounded-xl bg-rose-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60"
+                        className="rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60 transition-opacity"
+                        style={{ background: "var(--danger)" }}
                       >
                         Cancel
                       </button>
@@ -855,7 +904,8 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
                             type="button"
                             onClick={() => handleCheckIn(booking.bookingReference)}
                             disabled={loadingActions}
-                            className="rounded-xl bg-amber-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60"
+                            className="rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60 transition-opacity"
+                          style={{ background: "var(--warning)" }}
                           >
                             Late Check In
                           </button>
@@ -864,7 +914,8 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
                           type="button"
                           onClick={() => handleCancel(booking.bookingReference)}
                           disabled={loadingActions}
-                          className="rounded-xl bg-rose-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60"
+                          className="rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60 transition-opacity"
+                        style={{ background: "var(--danger)" }}
                         >
                           Cancel
                         </button>
@@ -877,7 +928,8 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
                             <button
                               type="button"
                               onClick={() => handleDueReminder(booking)}
-                              className="rounded-xl bg-cyan-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white"
+                              className="rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white transition-opacity"
+                            style={{ background: "var(--brand)" }}
                             >
                               Remind Payment
                             </button>
@@ -886,7 +938,8 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
                             type="button"
                             onClick={() => handleRelieve(booking.bookingReference)}
                             disabled={loadingActions}
-                            className="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60"
+                            className="rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60 transition-opacity"
+                          style={{ background: "rgba(99,102,241,0.85)" }}
                           >
                             Relieve
                           </button>
@@ -894,7 +947,8 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
                             type="button"
                             onClick={() => handleCancel(booking.bookingReference)}
                             disabled={loadingActions}
-                            className="rounded-xl bg-rose-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60"
+                            className="rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60 transition-opacity"
+                        style={{ background: "var(--danger)" }}
                           >
                             Cancel
                           </button>
@@ -910,7 +964,8 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
                                 setExtraAmountInput("0");
                               }}
                               disabled={loadingActions}
-                              className="rounded-xl bg-orange-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60"
+                              className="rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60 transition-opacity"
+                              style={{ background: "var(--action)" }}
                             >
                               Due Checkout
                             </button>
@@ -918,7 +973,8 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
                               type="button"
                               onClick={() => handleCancel(booking.bookingReference)}
                               disabled={loadingActions}
-                              className="rounded-xl bg-rose-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60"
+                              className="rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60 transition-opacity"
+                        style={{ background: "var(--danger)" }}
                             >
                               Cancel
                             </button>
@@ -931,7 +987,8 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
                                 type="button"
                                 onClick={() => handleCancel(booking.bookingReference)}
                                 disabled={loadingActions}
-                                className="rounded-xl bg-rose-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60"
+                                className="rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-60 transition-opacity"
+                        style={{ background: "var(--danger)" }}
                               >
                                 Cancel
                               </button>
@@ -942,27 +999,62 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
         />
       )}
 
+      {/* ── Due Overdue Checkout modal ── */}
       {checkoutModal.open ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)" }}
           onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              setCheckoutModal({ open: false, bookingReference: "" });
-            }
+            if (event.target === event.currentTarget) setCheckoutModal({ open: false, bookingReference: "" });
           }}
         >
-          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-5">
-            <h3 className="text-lg font-semibold text-slate-100">Due Overdue Checkout</h3>
-            <p className="mt-1 text-sm text-slate-400">Add due extra amount, then close booking as checked-out.</p>
-            <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-              Extra Amount
+          <div
+            className="w-full max-w-md rounded-2xl p-5 shadow-2xl"
+            style={{
+              background: "var(--bg-surface)",
+              border: "1px solid rgba(6,182,212,0.18)",
+              animation: "slideUpModal 0.28s cubic-bezier(0.16,1,0.3,1) both",
+            }}
+          >
+            <div className="mb-4 flex items-start justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
+                  Checkout
+                </p>
+                <h3 className="mt-0.5 text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+                  Due Overdue Checkout
+                </h3>
+                <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+                  Add any extra amount owed, then confirm the checkout.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCheckoutModal({ open: false, bookingReference: "" })}
+                className="flex h-8 w-8 items-center justify-center rounded-xl transition-all"
+                style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-muted)" }}
+              >
+                <FiX className="h-4 w-4" />
+              </button>
+            </div>
+
+            <label
+              className="block text-xs font-bold uppercase tracking-[0.14em]"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Extra Amount (₹)
               <input
                 type="number"
                 min="0"
                 step="0.01"
                 value={extraAmountInput}
                 onChange={(event) => setExtraAmountInput(event.target.value)}
-                className="mt-2 h-10 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none"
+                className="mt-1.5 h-11 w-full rounded-xl border px-3 text-sm outline-none"
+                style={{
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-primary)",
+                }}
               />
             </label>
 
@@ -970,14 +1062,16 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
               <button
                 type="button"
                 onClick={() => setCheckoutModal({ open: false, bookingReference: "" })}
-                className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300"
+                className="rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition-all"
+                style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleOverdueCheckout}
-                className="rounded-xl bg-orange-600 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white"
+                className="rounded-xl px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white transition-all hover:opacity-90"
+                style={{ background: "var(--action)" }}
               >
                 Confirm Checkout
               </button>
@@ -985,6 +1079,7 @@ export default function AdminBookingsOrganism({ initialTab = "pending", monthlyO
           </div>
         </div>
       ) : null}
+    </div>
     </div>
   );
 }

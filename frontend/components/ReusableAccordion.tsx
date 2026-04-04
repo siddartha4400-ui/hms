@@ -28,7 +28,14 @@ export default function ReusableAccordion({ items, defaultOpenId = null, emptyMe
 
   if (!items.length) {
     return emptyMessage ? (
-      <div className="rounded-xl border border-dashed border-black/10 bg-white/60 p-6 text-center text-sm text-slate-500">
+      <div
+        className="rounded-2xl border border-dashed p-8 text-center text-sm"
+        style={{
+          borderColor: "var(--border-strong)",
+          background: "var(--bg-elevated)",
+          color: "var(--text-secondary)",
+        }}
+      >
         {emptyMessage}
       </div>
     ) : null;
@@ -39,23 +46,50 @@ export default function ReusableAccordion({ items, defaultOpenId = null, emptyMe
       {items.map((item) => {
         const isOpen = openId === item.id;
         return (
-          <div key={item.id} className="overflow-hidden rounded-xl border border-black/5 bg-white shadow-[0_8px_24px_-20px_rgba(15,23,42,0.4)] transition hover:border-black/10 hover:shadow-[0_12px_28px_-20px_rgba(15,23,42,0.45)]">
+          <div
+            key={item.id}
+            className="overflow-hidden rounded-2xl border transition-all duration-200"
+            style={{
+              borderColor: isOpen ? "rgba(6,182,212,0.30)" : "var(--border)",
+              background: "var(--bg-surface)",
+              boxShadow: isOpen
+                ? "0 8px 32px -12px rgba(6,182,212,0.18), 0 0 0 1px rgba(6,182,212,0.08) inset"
+                : "0 4px 16px -8px rgba(0,0,0,0.15)",
+            }}
+          >
             <button
               type="button"
               onClick={() => setOpenId((current) => (current === item.id ? null : item.id))}
               aria-expanded={isOpen}
-              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+              className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors"
+              style={{
+                background: isOpen ? "rgba(6,182,212,0.04)" : "transparent",
+              }}
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">{item.title}</div>
-                {item.subtitle ? <div className="mt-0.5 text-xs text-slate-500">{item.subtitle}</div> : null}
+                {item.subtitle ? (
+                  <div className="mt-0.5 text-xs" style={{ color: "var(--text-secondary)" }}>
+                    {item.subtitle}
+                  </div>
+                ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {item.badge}
-                <FiChevronDown className={`h-4 w-4 text-slate-500 transition duration-200 ${isOpen ? "rotate-180" : ""}`} />
+                <FiChevronDown
+                  className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                  style={{ color: isOpen ? "var(--brand)" : "var(--text-muted)" }}
+                />
               </div>
             </button>
-            {isOpen ? <div className="border-t border-black/5 px-4 py-3">{item.content}</div> : null}
+            {isOpen ? (
+              <div
+                className="px-4 py-3.5"
+                style={{ borderTop: "1px solid var(--border)" }}
+              >
+                {item.content}
+              </div>
+            ) : null}
           </div>
         );
       })}

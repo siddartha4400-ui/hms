@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation";
 import {
   FiArrowRight,
   FiCalendar,
+  FiCheck,
+  FiCheckCircle,
   FiChevronLeft,
   FiChevronRight,
-  FiCheckCircle,
   FiGrid,
   FiHome,
   FiLoader,
@@ -19,6 +20,7 @@ import {
   FiTrash2,
   FiUser,
   FiUsers,
+  FiX,
 } from "react-icons/fi";
 
 import { ThemedDatePicker, ThemedSelect } from "@/components";
@@ -297,6 +299,7 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
   const [isSubsiteAutoLocked, setIsSubsiteAutoLocked] = useState(false);
   const [subsiteLabel, setSubsiteLabel] = useState("");
   const [selectedGuestIds, setSelectedGuestIds] = useState<number[]>([]);
+  const [layoutSelectedRoom, setLayoutSelectedRoom] = useState<PgRoomGroup | null>(null);
   const [hiddenGuestIds, setHiddenGuestIds] = useState<number[]>([]);
   const [flowStep, setFlowStep] = useState<FlowStep>("search");
   const [customGuestProfiles, setCustomGuestProfiles] = useState<RecentGuest[]>([]);
@@ -1006,9 +1009,23 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
   return (
     <div className={styles.pageShell}>
       <section className={styles.heroSection}>
-        <div className={styles.heroGlowLeft} />
-        <div className={styles.heroGlowRight} />
+        <div className={styles.heroOverlay} />
         <div className={styles.heroContainer}>
+          <div className={styles.heroText}>
+            <p className={styles.heroEyebrow}>Premium Hospitality</p>
+            <h1 className={styles.heroHeadline}>
+              Discover Your<br />
+              <span className={styles.heroHeadlineAccent}>Perfect Stay</span>
+            </h1>
+            <p className={styles.heroSubline}>
+              Handpicked properties across the city — seamless bookings, unforgettable experiences.
+            </p>
+            <div className={styles.heroTrustRow}>
+              <span className={styles.trustBadge}><FiCheckCircle className="h-3 w-3" /> Instant confirmation</span>
+              <span className={styles.trustBadge}><FiShield className="h-3 w-3" /> Verified properties</span>
+              <span className={styles.trustBadge}><FiUsers className="h-3 w-3" /> 10,000+ guests</span>
+            </div>
+          </div>
           <div className={styles.searchPanel}>
             <div className={styles.panelHeader}>
               <div className={styles.badgeWalkin}>
@@ -1023,94 +1040,94 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
             </div>
 
             <div className={styles.toolbarWrap}>
-              <div className={styles.searchToolbar}>
-                <div className={styles.searchToolbarItem}>
-                  <ThemedSelect
-                    value={cityId}
-                    onChange={(value) => setCityId(value ? Number(value) : "")}
-                    placeholder="City"
-                    leftIcon={<FiMapPin className="h-4 w-4" />}
-                    ariaLabel="City"
-                    options={(cityData?.listCities || []).map((city) => ({
-                      label: city.cityName,
-                      value: city.id,
-                    }))}
-                  />
-                </div>
+              {/* Row 1 — Filter selects */}
+              <div className={styles.toolbarFilterRow}>
+                <ThemedSelect
+                  value={cityId}
+                  onChange={(value) => setCityId(value ? Number(value) : "")}
+                  placeholder="City"
+                  leftIcon={<FiMapPin className="h-4 w-4" />}
+                  ariaLabel="City"
+                  options={(cityData?.listCities || []).map((city) => ({
+                    label: city.cityName,
+                    value: city.id,
+                  }))}
+                />
 
-                <div className={styles.searchToolbarItem}>
-                  <ThemedSelect
-                    value={propertyTypeFilter}
-                    onChange={(value) => setPropertyTypeFilter(value as "both" | "pg" | "lodge")}
-                    disabled={isSubsiteAutoLocked}
-                    leftIcon={<FiHome className="h-4 w-4" />}
-                    ariaLabel="Stay type"
-                    options={[
-                      { label: "Both", value: "both" },
-                      { label: "PG", value: "pg" },
-                      { label: "Lodge", value: "lodge" },
-                    ]}
-                  />
-                </div>
+                <ThemedSelect
+                  value={propertyTypeFilter}
+                  onChange={(value) => setPropertyTypeFilter(value as "both" | "pg" | "lodge")}
+                  disabled={isSubsiteAutoLocked}
+                  leftIcon={<FiHome className="h-4 w-4" />}
+                  ariaLabel="Stay type"
+                  options={[
+                    { label: "Both", value: "both" },
+                    { label: "PG", value: "pg" },
+                    { label: "Lodge", value: "lodge" },
+                  ]}
+                />
 
                 {!hideDurationMode ? (
-                  <div className="search-toolbar-item">
-                    <ThemedSelect
-                      value={stayDurationMode}
-                      onChange={(value) => setStayDurationMode(value as StayDurationMode)}
-                      leftIcon={<FiCalendar className="h-4 w-4" />}
-                      ariaLabel="Duration mode"
-                      options={[
-                        { label: "Short", value: "short_period" },
-                        { label: "Monthly", value: "monthly" },
-                      ]}
-                    />
-                  </div>
-                ) : null}
-
-                <div className={styles.searchToolbarItem}>
                   <ThemedSelect
-                    value={roomTypeFilter}
-                    onChange={(value) => setRoomTypeFilter(value as RoomTypeFilter)}
-                    leftIcon={<FiGrid className="h-4 w-4" />}
-                    ariaLabel="Room type"
+                    value={stayDurationMode}
+                    onChange={(value) => setStayDurationMode(value as StayDurationMode)}
+                    leftIcon={<FiCalendar className="h-4 w-4" />}
+                    ariaLabel="Duration mode"
                     options={[
-                      { label: "Any room", value: "any" },
-                      { label: "AC", value: "ac" },
-                      { label: "Non-AC", value: "non_ac" },
+                      { label: "Short stay", value: "short_period" },
+                      { label: "Monthly", value: "monthly" },
                     ]}
                   />
-                </div>
+                ) : null}
 
-                <div className={`${styles.searchToolbarItem} inline-flex h-16 items-center gap-1.5 rounded-2xl border px-4 w-full`} style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
+                <ThemedSelect
+                  value={roomTypeFilter}
+                  onChange={(value) => setRoomTypeFilter(value as RoomTypeFilter)}
+                  leftIcon={<FiGrid className="h-4 w-4" />}
+                  ariaLabel="Room type"
+                  options={[
+                    { label: "Any room", value: "any" },
+                    { label: "AC room", value: "ac" },
+                    { label: "Non-AC", value: "non_ac" },
+                  ]}
+                />
+              </div>
+
+              {/* Divider */}
+              <div className={styles.toolbarDivider} />
+
+              {/* Row 2 — Guest counter + Dates */}
+              <div className={styles.toolbarDateRow}>
+                {/* Guest counter */}
+                <div className={styles.guestCounter}>
                   <button
                     type="button"
                     onClick={() => handleGuestCountChange(Math.max(1, guestCount - 1))}
                     disabled={propertyTypeFilter === "pg" || guestCount <= 1}
-                    className="h-12 w-12 rounded-xl border text-2xl font-bold"
-                    style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--bg-elevated)", opacity: propertyTypeFilter === "pg" ? 0.5 : 1 }}
+                    className={styles.guestBtn}
+                    aria-label="Decrease guests"
                   >
-                    -
+                    −
                   </button>
-                  <span
-                    className="inline-flex h-12 min-w-[80px] items-center justify-center rounded-xl border px-4 text-center text-base font-extrabold"
-                    style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--bg-input)" }}
-                  >
-                    {guestCount} {guestCount === 1 ? "guest" : "guests"}
-                  </span>
+                  <div className={styles.guestDisplay}>
+                    <FiUsers className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--brand)" }} />
+                    <span className={styles.guestCount}>{guestCount}</span>
+                    <span className={styles.guestLabel}>{guestCount === 1 ? "guest" : "guests"}</span>
+                  </div>
                   <button
                     type="button"
                     onClick={() => handleGuestCountChange(Math.min(4, guestCount + 1))}
                     disabled={propertyTypeFilter === "pg" || guestCount >= 4}
-                    className="h-12 w-12 rounded-xl border text-2xl font-bold"
-                    style={{ borderColor: "var(--border)", color: "var(--text-primary)", background: "var(--bg-elevated)", opacity: propertyTypeFilter === "pg" ? 0.5 : 1 }}
+                    className={styles.guestBtn}
+                    aria-label="Increase guests"
                   >
                     +
                   </button>
                 </div>
 
+                {/* Date pickers */}
                 {stayDurationMode === "monthly" ? (
-                  <div className={styles.searchToolbarItem}>
+                  <div className={styles.datePart}>
                     <ThemedDatePicker
                       value={checkIn}
                       minDate={today}
@@ -1120,13 +1137,13 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
                         const bounded = nextValue < today ? today : nextValue;
                         setCheckIn(bounded);
                       }}
-                      placeholder="Date"
-                      className="w-full toolbar-date-control"
+                      placeholder="Check-in date"
+                      className="w-full"
                     />
                   </div>
                 ) : (
                   <>
-                    <div className={styles.searchToolbarItem}>
+                    <div className={styles.datePart}>
                       <ThemedDatePicker
                         value={checkIn}
                         minDate={today}
@@ -1135,41 +1152,31 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
                         onChange={(nextValue) => {
                           const bounded = nextValue < today ? today : nextValue;
                           setCheckIn(bounded);
-                          if (stayLength(bounded, checkOut) <= 0) {
-                            setCheckOut(addDays(bounded, 1));
-                          }
-                          if (stayLength(bounded, checkOut) > 31) {
-                            setCheckOut(addDays(bounded, 31));
-                          }
+                          if (stayLength(bounded, checkOut) <= 0) setCheckOut(addDays(bounded, 1));
+                          if (stayLength(bounded, checkOut) > 31) setCheckOut(addDays(bounded, 31));
                         }}
-                        placeholder="Start"
-                        className="w-full toolbar-date-control"
+                        placeholder="Check-in"
+                        className="w-full"
                       />
                     </div>
-                    <div className={styles.searchToolbarItem}>
+                    <div className={styles.dateArrow}>→</div>
+                    <div className={styles.datePart}>
                       <ThemedDatePicker
                         value={checkOut}
                         minDate={addDays(checkIn, 1)}
                         yearStart={currentYear}
                         yearEnd={currentYear + 2}
                         onChange={(nextValue) => {
-                          if (nextValue <= checkIn) {
-                            setCheckOut(addDays(checkIn, 1));
-                            return;
-                          }
-                          if (stayLength(checkIn, nextValue) > 31) {
-                            setCheckOut(addDays(checkIn, 31));
-                            return;
-                          }
+                          if (nextValue <= checkIn) { setCheckOut(addDays(checkIn, 1)); return; }
+                          if (stayLength(checkIn, nextValue) > 31) { setCheckOut(addDays(checkIn, 31)); return; }
                           setCheckOut(nextValue);
                         }}
-                        placeholder="End"
-                        className="w-full toolbar-date-control"
+                        placeholder="Check-out"
+                        className="w-full"
                       />
                     </div>
                   </>
                 )}
-
               </div>
             </div>
 
@@ -1590,149 +1597,259 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
         </div>
       </section>
 
+      {/* ═══════════════════════════════════════════════════════════
+          BUILDING LAYOUT MODAL — Building → Floor → Room → Bed
+      ═══════════════════════════════════════════════════════════ */}
       {layoutBuilding ? (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center"
+          className={styles.layoutOverlay}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setLayoutBuilding(null);
+              setLayoutSelectedRoom(null);
             }
           }}
         >
-          <div className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] p-6 shadow-2xl" style={surfaceCardStyle}>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={subtleTextStyle}>Building layout</p>
-                <h3 className="mt-1 text-2xl font-semibold">{layoutBuilding.buildingName}</h3>
-                <p className="mt-1 text-sm" style={subtleTextStyle}>{layoutBuilding.hmsDisplayName} · {layoutBuilding.cityName}</p>
-              </div>
+          <div className={styles.layoutModal}>
+
+            {/* ── Sticky header: breadcrumb + close ── */}
+            <div className={styles.layoutHeader}>
+              <nav className={styles.layoutBreadcrumb} aria-label="Location">
+                {/* Building crumb */}
+                <button
+                  type="button"
+                  className={styles.breadcrumbBtn}
+                  onClick={() => setLayoutSelectedRoom(null)}
+                  style={!layoutSelectedRoom ? { color: "var(--brand)", fontWeight: 700, pointerEvents: "none" } : undefined}
+                >
+                  <FiHome className="h-3.5 w-3.5 shrink-0" />
+                  <span className={styles.breadcrumbLabel}>{layoutBuilding.buildingName}</span>
+                </button>
+                {/* Floor crumb */}
+                {layoutFloor !== null ? (
+                  <>
+                    <FiChevronRight className={styles.breadcrumbSep} />
+                    <button
+                      type="button"
+                      className={styles.breadcrumbBtn}
+                      onClick={() => setLayoutSelectedRoom(null)}
+                      style={layoutSelectedRoom ? undefined : { color: "var(--brand)", fontWeight: 700, pointerEvents: "none" }}
+                    >
+                      {layoutFloors.find(f => f.key === layoutFloor)?.label ?? `Floor ${layoutFloor}`}
+                    </button>
+                  </>
+                ) : null}
+                {/* Room crumb (PG only) */}
+                {layoutSelectedRoom ? (
+                  <>
+                    <FiChevronRight className={styles.breadcrumbSep} />
+                    <span className={styles.breadcrumbCurrent}>Room {layoutSelectedRoom.roomNumber}</span>
+                  </>
+                ) : null}
+              </nav>
+
               <button
                 type="button"
-                onClick={() => setLayoutBuilding(null)}
-                className="flex h-9 w-9 items-center justify-center rounded-xl border transition"
-                style={{ borderColor: "var(--border)", color: "var(--text-muted)", background: "var(--bg-elevated)" }}
+                onClick={() => { setLayoutBuilding(null); setLayoutSelectedRoom(null); }}
+                className={styles.layoutCloseBtn}
                 aria-label="Close"
               >
-                ✕
+                <FiX className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="mt-4 flex-1 overflow-y-auto pr-1">
-              <div className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: "var(--brand-border)", background: "var(--brand-dim)", color: "var(--text-secondary)" }}>
-                Layout shows all {layoutBuilding.propertyType === 'lodge' ? 'rooms' : 'beds'}. Unavailable items are disabled.
+            {/* ── Property meta strip ── */}
+            <div className={styles.layoutMetaStrip}>
+              <div className={styles.layoutMetaLeft}>
+                <span className={styles.propTypePill}>
+                  {layoutBuilding.propertyType === "lodge" ? "🏨 Lodge" : "🏠 PG"}
+                </span>
+                <span className={styles.layoutMetaText}>{layoutBuilding.hmsDisplayName}</span>
+                <span className={styles.layoutMetaDot}>·</span>
+                <span className={styles.layoutMetaText}>{layoutBuilding.cityName}</span>
               </div>
+              <span className={styles.availCountPill}>
+                {layoutBuilding.slots.filter(s => s.available).length} available
+              </span>
+            </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                {layoutFloors.map((floor) => {
-                  return (
-                    <button
-                      key={`floor-${floor.key}`}
-                      type="button"
-                      onClick={() => setLayoutFloor(floor.key)}
-                      className="rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition"
-                      style={layoutFloor === floor.key ? brandButtonStyle : { background: "var(--bg-elevated)", color: "var(--text-secondary)" }}
-                    >
-                      {floor.label} ({floor.count})
-                    </button>
-                  );
-                })}
-              </div>
+            {/* ── Scrollable body ── */}
+            <div className={styles.layoutBody}>
+              <div className={styles.layoutColumns}>
 
-              {layoutBuilding.propertyType === "pg" ? (
-                <div className="mt-5 space-y-3">
-                  {layoutPgRooms.map((room) => (
-                    <div key={`room-${room.roomKey}`} className="rounded-2xl border p-3" style={elevatedCardStyle}>
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={subtleTextStyle}>Room</p>
-                          <p className="text-base font-semibold">{room.roomNumber}</p>
+                {/* ── Left column: Floor selector (visual building map) ── */}
+                <div className={styles.floorCol}>
+                  <p className={styles.colLabel}>
+                    <FiHome className="h-3 w-3" /> Floors
+                  </p>
+                  <div className={styles.floorStack}>
+                    {[...layoutFloors].reverse().map((floor) => {
+                      const floorSlots = layoutBuilding.slots.filter(
+                        s => (s.floorId ?? s.floorNumber ?? 0) === floor.key,
+                      );
+                      const availCount = floorSlots.filter(s => s.available).length;
+                      const total      = floorSlots.length;
+                      const pct        = total > 0 ? (availCount / total) * 100 : 0;
+                      const isActive   = layoutFloor === floor.key;
+                      return (
+                        <button
+                          key={`fl-${floor.key}`}
+                          type="button"
+                          onClick={() => { setLayoutFloor(floor.key); setLayoutSelectedRoom(null); }}
+                          className={`${styles.floorTile} ${isActive ? styles.floorTileActive : ""}`}
+                        >
+                          <span className={styles.floorTileName}>{floor.label}</span>
+                          <span className={styles.floorTileBar}>
+                            <span className={styles.floorTileBarFill} style={{ width: `${pct}%` }} />
+                          </span>
+                          <span className={styles.floorTileCount}>{availCount}<span className={styles.floorTileOf}>/{total}</span></span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ── Right column: Inventory grid ── */}
+                <div className={styles.inventoryCol}>
+                  {layoutBuilding.propertyType === "pg" ? (
+                    layoutSelectedRoom ? (
+                      /* PG → Beds inside selected room */
+                      <>
+                        <div className={styles.drillHeader}>
+                          <button
+                            type="button"
+                            className={styles.backChip}
+                            onClick={() => setLayoutSelectedRoom(null)}
+                          >
+                            <FiChevronLeft className="h-3.5 w-3.5" /> Rooms
+                          </button>
+                          <p className={styles.colLabel}>
+                            Room {layoutSelectedRoom.roomNumber}
+                            {layoutSelectedRoom.roomType ? ` · ${formatRoomTypeLabel(layoutSelectedRoom.roomType)}` : ""}
+                          </p>
                         </div>
-                        <span className="rounded-lg px-2.5 py-1 text-xs font-medium" style={{ background: "var(--bg-surface)", color: "var(--text-secondary)" }}>
-                          {room.beds.length} bed{room.beds.length === 1 ? "" : "s"}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 md:grid-cols-5 lg:grid-cols-6">
-                        {room.beds.map((slot) => {
-                          const isSelected =
-                            selectedOption?.bookingTargetId === slot.bookingTargetId &&
-                            selectedOption?.inventoryType === slot.inventoryType;
-                          const isUnavailable = !slot.available;
-                          const slotStatusLabel = getAvailabilityLabel(slot);
+                        <div className={styles.slotGrid}>
+                          {layoutSelectedRoom.beds.map((slot) => {
+                            const isSel     = selectedOption?.bookingTargetId === slot.bookingTargetId && selectedOption?.inventoryType === slot.inventoryType;
+                            const isUnavail = !slot.available;
+                            const statusLabel = getAvailabilityLabel(slot);
+                            const dotClass  = isUnavail
+                              ? (statusLabel === "Booked" ? styles.dotBooked : statusLabel === "Maintenance" ? styles.dotMaint : styles.dotUnavail)
+                              : styles.dotAvail;
+                            return (
+                              <button
+                                key={`bed-${slot.bookingTargetId}`}
+                                type="button"
+                                disabled={isUnavail}
+                                onClick={() => { if (isUnavail) return; setSelectedOption(slot); setLayoutBuilding(null); setLayoutSelectedRoom(null); }}
+                                className={`${styles.slotCard} ${isSel ? styles.slotCardSel : ""} ${isUnavail ? styles.slotCardUnavail : styles.slotCardAvail}`}
+                              >
+                                {isSel ? <FiCheck className={styles.slotCheckIcon} /> : null}
+                                <span className={`${styles.slotDot} ${dotClass}`} />
+                                <p className={styles.slotPrimary}>Bed {slot.bedNumber}</p>
+                                <p className={`${styles.slotStatusLabel} ${isUnavail ? styles.slotStatusOff : styles.slotStatusOn}`}>{statusLabel}</p>
+                                {!isUnavail ? <p className={styles.slotPrice}>{formatCurrency(slot.totalAmount)}</p> : null}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      /* PG → Room cards (click to drill into beds) */
+                      <>
+                        <p className={styles.colLabel}><FiGrid className="h-3 w-3" /> Rooms — tap to see beds</p>
+                        <div className={styles.pgRoomGrid}>
+                          {layoutPgRooms.map((room) => {
+                            const availBeds = room.beds.filter(b => b.available).length;
+                            const total     = room.beds.length;
+                            return (
+                              <button
+                                key={`pgr-${room.roomKey}`}
+                                type="button"
+                                disabled={availBeds === 0}
+                                onClick={() => setLayoutSelectedRoom(room)}
+                                className={`${styles.pgRoomCard} ${availBeds === 0 ? styles.pgRoomCardFull : ""}`}
+                              >
+                                <div className={styles.pgRoomCardTop}>
+                                  <div>
+                                    <p className={styles.pgRoomSubLabel}>Room</p>
+                                    <p className={styles.pgRoomNum}>{room.roomNumber}</p>
+                                    {room.roomType ? <p className={styles.pgRoomType}>{formatRoomTypeLabel(room.roomType)}</p> : null}
+                                  </div>
+                                  <span className={`${styles.pgBedBadge} ${availBeds > 0 ? styles.pgBedBadgeAvail : styles.pgBedBadgeFull}`}>
+                                    {availBeds}/{total} beds
+                                  </span>
+                                </div>
+                                <div className={styles.pgBedDotRow}>
+                                  {room.beds.map((bed) => (
+                                    <span
+                                      key={`pdot-${bed.bookingTargetId}`}
+                                      className={`${styles.pgBedDot} ${bed.available ? styles.pgBedDotAvail : styles.pgBedDotTaken}`}
+                                      title={`Bed ${bed.bedNumber}: ${getAvailabilityLabel(bed)}`}
+                                    />
+                                  ))}
+                                </div>
+                                {availBeds > 0 ? (
+                                  <div className={styles.pgRoomCta}>
+                                    Pick a bed <FiChevronRight className="h-3.5 w-3.5" />
+                                  </div>
+                                ) : (
+                                  <p className={styles.pgRoomFullText}>All beds taken</p>
+                                )}
+                              </button>
+                            );
+                          })}
+                          {layoutPgRooms.length === 0 ? (
+                            <div className={styles.emptySlate}>No rooms on this floor.</div>
+                          ) : null}
+                        </div>
+                      </>
+                    )
+                  ) : (
+                    /* Lodge → Room grid */
+                    <>
+                      <p className={styles.colLabel}><FiGrid className="h-3 w-3" /> Rooms — tap to select</p>
+                      <div className={styles.slotGrid}>
+                        {layoutVisibleSlots.map((slot) => {
+                          const isSel     = selectedOption?.bookingTargetId === slot.bookingTargetId && selectedOption?.inventoryType === slot.inventoryType;
+                          const isUnavail = !slot.available;
+                          const statusLabel = getAvailabilityLabel(slot);
+                          const dotClass  = isUnavail
+                            ? (statusLabel === "Booked" ? styles.dotBooked : statusLabel === "Maintenance" ? styles.dotMaint : styles.dotUnavail)
+                            : styles.dotAvail;
                           return (
                             <button
-                              key={`${slot.inventoryType}-${slot.bookingTargetId}`}
+                              key={`lr-${slot.bookingTargetId}`}
                               type="button"
-                              onClick={() => {
-                                if (isUnavailable) return;
-                                setSelectedOption(slot);
-                                setLayoutBuilding(null);
-                                setFlowStep("inventory");
-                              }}
-                              className="rounded-lg border px-2.5 py-2 text-left transition"
-                              disabled={isUnavailable}
-                              style={
-                                isSelected
-                                  ? { borderColor: "var(--brand)", background: "var(--brand-dim)" }
-                                  : isUnavailable
-                                    ? { borderColor: "var(--border-strong)", background: "var(--bg-elevated)", color: "var(--text-muted)", opacity: 0.72, cursor: "not-allowed" }
-                                    : { borderColor: "var(--border)", background: "var(--bg-surface)" }
-                              }
+                              disabled={isUnavail}
+                              onClick={() => { if (isUnavail) return; setSelectedOption(slot); setLayoutBuilding(null); }}
+                              className={`${styles.slotCard} ${isSel ? styles.slotCardSel : ""} ${isUnavail ? styles.slotCardUnavail : styles.slotCardAvail}`}
                             >
-                              <p className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={subtleTextStyle}>Bed</p>
-                              <p className="mt-0.5 text-xs font-semibold">{slot.bedNumber}</p>
-                              <p className="mt-1 text-[10px] font-semibold" style={isUnavailable ? subtleTextStyle : { color: "var(--positive)" }}>{slotStatusLabel}</p>
-                              <p className="mt-1 text-[11px] font-semibold" style={isUnavailable ? subtleTextStyle : { color: "var(--brand)" }}>{formatCurrency(slot.totalAmount)}</p>
+                              {isSel ? <FiCheck className={styles.slotCheckIcon} /> : null}
+                              <span className={`${styles.slotDot} ${dotClass}`} />
+                              <p className={styles.slotPrimary}>{slot.roomNumber}</p>
+                              <p className={styles.slotSecondary}>{formatRoomTypeLabel(slot.roomType)}</p>
+                              <p className={`${styles.slotStatusLabel} ${isUnavail ? styles.slotStatusOff : styles.slotStatusOn}`}>{statusLabel}</p>
+                              {!isUnavail ? <p className={styles.slotPrice}>{formatCurrency(slot.totalAmount)}</p> : null}
                             </button>
                           );
                         })}
+                        {layoutVisibleSlots.length === 0 ? (
+                          <div className={styles.emptySlate}>No rooms on this floor.</div>
+                        ) : null}
                       </div>
-                    </div>
-                  ))}
+                    </>
+                  )}
                 </div>
-              ) : (
-                <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-                  {layoutVisibleSlots.map((slot) => {
-                    const isSelected =
-                      selectedOption?.bookingTargetId === slot.bookingTargetId &&
-                      selectedOption?.inventoryType === slot.inventoryType;
-                    const isUnavailable = !slot.available;
-                    const slotStatusLabel = getAvailabilityLabel(slot);
-                    return (
-                      <button
-                        key={`${slot.inventoryType}-${slot.bookingTargetId}`}
-                        type="button"
-                        onClick={() => {
-                          if (isUnavailable) return;
-                          setSelectedOption(slot);
-                          setLayoutBuilding(null);
-                          setFlowStep("inventory");
-                        }}
-                        className="rounded-2xl border px-3 py-3 text-left transition"
-                        disabled={isUnavailable}
-                        style={
-                          isSelected
-                            ? { borderColor: "var(--brand)", background: "var(--brand-dim)" }
-                            : isUnavailable
-                              ? { borderColor: "var(--border-strong)", background: "var(--bg-elevated)", color: "var(--text-muted)", opacity: 0.72, cursor: "not-allowed" }
-                              : { borderColor: "var(--border)", background: "var(--bg-surface)" }
-                        }
-                      >
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={subtleTextStyle}>Room</p>
-                        <p className="mt-1 text-lg font-semibold">{slot.roomNumber}</p>
-                        <p className="mt-1 text-xs" style={subtleTextStyle}>{formatRoomTypeLabel(slot.roomType)}</p>
-                        <p className="mt-1 text-[11px] font-semibold" style={isUnavailable ? subtleTextStyle : { color: "var(--positive)" }}>{slotStatusLabel}</p>
-                        <p className="mt-2 text-sm font-semibold" style={isUnavailable ? subtleTextStyle : { color: "var(--brand)" }}>{formatCurrency(slot.totalAmount)}</p>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              {layoutVisibleSlots.length === 0 ? (
-                <div className="mt-4 rounded-xl border border-dashed px-4 py-5 text-center text-sm" style={{ borderColor: "var(--border-strong)", background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
-                  No slots found on this floor.
-                </div>
-              ) : null}
+              </div>
+
+              {/* ── Legend ── */}
+              <div className={styles.layoutLegend}>
+                <span className={styles.legendItem}><span className={`${styles.slotDot} ${styles.dotAvail}`} /> Available</span>
+                <span className={styles.legendItem}><span className={`${styles.slotDot} ${styles.dotBooked}`} /> Booked</span>
+                <span className={styles.legendItem}><span className={`${styles.slotDot} ${styles.dotMaint}`} /> Maintenance</span>
+                <span className={styles.legendItem}><span className={`${styles.slotDot} ${styles.dotUnavail}`} /> Unavailable</span>
+              </div>
             </div>
           </div>
         </div>
