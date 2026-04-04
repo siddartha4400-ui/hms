@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@apollo/client/react';
-import { FiArrowLeft, FiBookOpen, FiGrid, FiHome, FiLayers, FiMenu, FiX } from 'react-icons/fi';
+import { FiArrowLeft, FiBookOpen, FiGrid, FiHome, FiMenu, FiX } from 'react-icons/fi';
 import Link from 'next/link';
 import ThemeToggle from './ThemeToggle';
 import { GET_USER_PROFILE_QUERY } from '@/project_components/common-routes/graphql/operations';
@@ -101,6 +101,7 @@ export default function Header() {
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [isClientMounted, setIsClientMounted] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [profileIdentity, setProfileIdentity] = useState<StoredProfileIdentity>({
     avatarUrl: '',
@@ -119,6 +120,7 @@ export default function Header() {
       setProfileIdentity(readStoredProfileIdentity());
     }
     sync();
+    setIsClientMounted(true);
     window.addEventListener(AUTH_CHANGED_EVENT, sync);
     window.addEventListener(PROFILE_AVATAR_UPDATED_EVENT, sync as EventListener);
     return () => {
@@ -173,7 +175,7 @@ export default function Header() {
       return links;
     }
 
-    if (typeof window === 'undefined') {
+    if (!isClientMounted) {
       return links;
     }
 
@@ -199,7 +201,7 @@ export default function Header() {
     }
 
     return links;
-  }, [hmsAccessData, hmsAccessLoading, isAuthenticated, userRole]);
+  }, [hmsAccessData, hmsAccessLoading, isAuthenticated, isClientMounted, userRole]);
   const showBackButton = pathname !== '/';
 
   const handleBack = useCallback(() => {
@@ -229,7 +231,7 @@ export default function Header() {
 
   return (
     <nav
-      className="fixed top-0 left-0 right-0 z-50 px-4 md:px-8 py-3 md:py-4 flex justify-between items-center gap-4 transition-all duration-500 shadow-sm"
+      className="fixed top-0 left-0 right-0 z-50 px-4 md:px-8 py-1.5 md:py-2 flex justify-between items-center gap-4 transition-all duration-500 shadow-sm"
       style={{
         background: 'var(--bg-navbar)',
         backdropFilter: 'blur(24px)',
@@ -238,27 +240,25 @@ export default function Header() {
         boxShadow: '0 10px 40px -10px rgba(0,0,0,0.1)',
       }}
     >
-      <div className="flex items-center gap-3 md:gap-4 shrink-0 hover:opacity-80 transition-opacity">
+      <div className="flex items-center gap-3 md:gap-4 shrink-0 hover:opacity-90 transition-opacity">
         {/* Brand */}
-        <Link href="/" className="flex items-center gap-3 no-underline group shrink-0">
-          <div
-            className="w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-lg group-hover:scale-105"
-            style={{ 
-              background: 'linear-gradient(135deg, var(--brand-dim) 0%, transparent 100%)', 
-              border: '1px solid var(--brand-border)' 
-            }}
-          >
-            <FiLayers style={{ color: 'var(--brand)' }} className="text-base md:text-lg drop-shadow-md" />
+        <Link href="/" className="flex items-center gap-3 md:gap-4 no-underline group shrink-0">
+          <div className="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center transition-transform duration-300 group-hover:scale-[1.03]">
+            <img
+              src="/brand/hotel-sphere-logo.png"
+              alt="stayHMs"
+              className="h-full w-full object-contain"
+            />
           </div>
-          <div className="leading-tight">
-            <span className="block text-sm md:text-base font-extrabold tracking-tight transition-colors duration-300 group-hover:text-[var(--brand)]" style={{ color: 'var(--text-primary)' }}>
-              HotelSphere
+          <div className="leading-tight md:leading-snug">
+            <span className="block text-base md:text-xl font-extrabold tracking-tight transition-colors duration-300 group-hover:text-[var(--brand)]" style={{ color: 'var(--text-primary)' }}>
+              {/* HOSTLYNX */}
             </span>
             <span
-              className="hidden md:block text-[9.5px] uppercase tracking-[.25em] font-semibold mt-0.5"
+              className="hidden md:block mt-1 max-w-[340px] text-[11px] md:text-xs font-medium tracking-[0.02em]"
               style={{ color: 'var(--text-muted)' }}
             >
-              Hospitality Platform
+              {/* Hotel &amp; pg management system */}
             </span>
           </div>
         </Link>

@@ -11,6 +11,7 @@ class AvailabilityOptionType(graphene.ObjectType):
 	hms_name = graphene.String()
 	hms_display_name = graphene.String()
 	image_url = graphene.String()
+	gallery_images = graphene.List(graphene.String)
 	city_id = graphene.Int()
 	city_name = graphene.String()
 	building_id = graphene.Int()
@@ -29,6 +30,10 @@ class AvailabilityOptionType(graphene.ObjectType):
 	price_per_month = graphene.Float()
 	total_amount = graphene.Float()
 	available = graphene.Boolean()
+	is_active = graphene.Boolean()
+	inventory_status = graphene.String()
+	is_booked = graphene.Boolean()
+	availability_state = graphene.String()
 
 
 class BookingGuestType(graphene.ObjectType):

@@ -30,7 +30,16 @@ class BookingRepository:
 
 	@staticmethod
 	def list_available_lodge_rooms(*, city_id=None, hms_name=None):
-		queryset = Room.objects.select_related("building", "floor", "building__company", "building__city")
+		queryset = Room.objects.select_related(
+			"building",
+			"floor",
+			"building__company",
+			"building__city",
+			"building__building_image_attachment",
+			"building__floor_image_attachment",
+			"building__room_image_attachment",
+			"building__bathroom_image_attachment",
+		)
 		queryset = queryset.filter(
 			is_active=True,
 			building__is_active=True,
@@ -47,8 +56,41 @@ class BookingRepository:
 		return queryset.order_by("building__name", "room_number", "id")
 
 	@staticmethod
+	def list_lodge_rooms_for_availability(*, city_id=None, hms_name=None):
+		queryset = Room.objects.select_related(
+			"building",
+			"floor",
+			"building__company",
+			"building__city",
+			"building__building_image_attachment",
+			"building__floor_image_attachment",
+			"building__room_image_attachment",
+			"building__bathroom_image_attachment",
+		)
+		queryset = queryset.filter(
+			building__city__is_active=True,
+			building__company__is_active=True,
+			building__property_type="lodge",
+		)
+		if city_id is not None:
+			queryset = queryset.filter(building__city_id=city_id)
+		if hms_name:
+			queryset = queryset.filter(building__company__hms_name=hms_name)
+		return queryset.order_by("building__name", "room_number", "id")
+
+	@staticmethod
 	def list_available_pg_beds(*, city_id=None, hms_name=None):
-		queryset = Bed.objects.select_related("room", "room__building", "room__floor", "room__building__company", "room__building__city")
+		queryset = Bed.objects.select_related(
+			"room",
+			"room__building",
+			"room__floor",
+			"room__building__company",
+			"room__building__city",
+			"room__building__building_image_attachment",
+			"room__building__floor_image_attachment",
+			"room__building__room_image_attachment",
+			"room__building__bathroom_image_attachment",
+		)
 		queryset = queryset.filter(
 			is_active=True,
 			status="available",
@@ -66,10 +108,34 @@ class BookingRepository:
 		return queryset.order_by("room__building__name", "room__room_number", "id")
 
 	@staticmethod
+	def list_pg_beds_for_availability(*, city_id=None, hms_name=None):
+		queryset = Bed.objects.select_related(
+			"room",
+			"room__building",
+			"room__floor",
+			"room__building__company",
+			"room__building__city",
+			"room__building__building_image_attachment",
+			"room__building__floor_image_attachment",
+			"room__building__room_image_attachment",
+			"room__building__bathroom_image_attachment",
+		)
+		queryset = queryset.filter(
+			room__building__city__is_active=True,
+			room__building__company__is_active=True,
+			room__building__property_type="pg",
+		)
+		if city_id is not None:
+			queryset = queryset.filter(room__building__city_id=city_id)
+		if hms_name:
+			queryset = queryset.filter(room__building__company__hms_name=hms_name)
+		return queryset.order_by("room__building__name", "room__room_number", "id")
+
+	@staticmethod
 	def has_overlapping_room_booking(room_id: int, check_in, check_out):
 		return Booking.objects.filter(
 			room_id=room_id,
-			status="confirmed",
+			status__in=["confirmed", "checked_in"],
 		).filter(
 			Q(check_in__lt=check_out) & Q(check_out__gt=check_in)
 		).exists()
@@ -78,7 +144,7 @@ class BookingRepository:
 	def has_overlapping_bed_booking(bed_id: int, check_in, check_out):
 		return Booking.objects.filter(
 			bed_id=bed_id,
-			status="confirmed",
+			status__in=["confirmed", "checked_in"],
 		).filter(
 			Q(check_in__lt=check_out) & Q(check_out__gt=check_in)
 		).exists()

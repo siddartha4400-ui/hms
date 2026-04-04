@@ -25,6 +25,7 @@ export const SEARCH_AVAILABILITY_QUERY = gql`
       hmsName
       hmsDisplayName
       imageUrl
+      galleryImages
       cityId
       cityName
       buildingId
@@ -43,6 +44,10 @@ export const SEARCH_AVAILABILITY_QUERY = gql`
       pricePerMonth
       totalAmount
       available
+      isActive
+      inventoryStatus
+      isBooked
+      availabilityState
     }
   }
 `;

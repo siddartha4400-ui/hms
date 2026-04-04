@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import {
   FiArrowRight,
   FiCalendar,
+  FiChevronLeft,
+  FiChevronRight,
   FiCheckCircle,
   FiGrid,
   FiHome,
@@ -22,6 +24,7 @@ import {
 import { ThemedDatePicker, ThemedSelect } from "@/components";
 import AttachmentUploader, { UploadedAttachment } from "@/components/AttachmentUploader";
 import { AUTH_CHANGED_EVENT, getValidAuthToken } from "@/lib/auth-token";
+import { normalizeBackendAssetUrl } from "@/lib/backend-url";
 import {
   LOGIN_MUTATION,
   VERIFY_LOGIN_OTP_MUTATION,
@@ -45,6 +48,7 @@ type AvailabilityOption = {
   hmsName: string;
   hmsDisplayName: string;
   imageUrl?: string | null;
+  galleryImages?: string[] | null;
   cityId: number;
   cityName: string;
   buildingId: number;
@@ -63,6 +67,10 @@ type AvailabilityOption = {
   pricePerMonth?: number | null;
   totalAmount?: number | null;
   available: boolean;
+  isActive?: boolean | null;
+  inventoryStatus?: string | null;
+  isBooked?: boolean | null;
+  availabilityState?: string | null;
 };
 
 type BookingGuest = {
@@ -137,6 +145,7 @@ type BuildingGroup = {
   propertyType: 'pg' | 'lodge';
   slots: AvailabilityOption[];
   minPrice: number;
+  maxPrice: number;
 };
 
 type FloorMeta = {
@@ -204,6 +213,22 @@ function formatRoomTypeLabel(roomType?: string | null): string {
   if (normalized === "double") return "Double";
   if (normalized === "deluxe") return "Deluxe";
   return roomType || "Lodge room";
+}
+
+function getAvailabilityLabel(slot: AvailabilityOption): string {
+  const state = (slot.availabilityState || "").toLowerCase();
+  if (state === "available") return "Available";
+  if (state === "booked") return "Booked";
+  if (state === "maintenance") return "Maintenance";
+  if (state === "occupied") return "Occupied";
+  if (state === "inactive") return "Disabled";
+
+  if (slot.isBooked) return "Booked";
+  if (slot.isActive === false) return "Disabled";
+  const inventoryStatus = (slot.inventoryStatus || "").toLowerCase();
+  if (inventoryStatus === "maintenance") return "Maintenance";
+  if (inventoryStatus === "occupied") return "Occupied";
+  return slot.available ? "Available" : "Unavailable";
 }
 
 function stayLength(checkIn: string, checkOut: string): number {
@@ -286,6 +311,9 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
   const guestsRef = useRef<HTMLDivElement | null>(null);
   const resultsRef = useRef<HTMLElement | null>(null);
   const [isResultsInView, setIsResultsInView] = useState(false);
+  const [isGalleryModalOpen, setIsGalleryModalOpen] = useState(false);
+  const [galleryItems, setGalleryItems] = useState<Array<{ url: string; label: string }>>([]);
+  const [galleryIndex, setGalleryIndex] = useState(0);
 
   useEffect(() => {
     if (typeof window === "undefined" || !resultsRef.current) return;
@@ -328,6 +356,26 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
     setLoginModalError('');
   }
 
+  function openGallery(items: Array<{ url: string; label: string }>, startIndex: number) {
+    const validItems = items.filter((item) => Boolean(item.url));
+    if (validItems.length === 0) {
+      return;
+    }
+    setGalleryItems(validItems);
+    setGalleryIndex(Math.max(0, Math.min(startIndex, validItems.length - 1)));
+    setIsGalleryModalOpen(true);
+  }
+
+  function goPrevGallery() {
+    if (!galleryItems.length) return;
+    setGalleryIndex((current) => (current - 1 + galleryItems.length) % galleryItems.length);
+  }
+
+  function goNextGallery() {
+    if (!galleryItems.length) return;
+    setGalleryIndex((current) => (current + 1) % galleryItems.length);
+  }
+
   const { data: cityData } = useQuery<CitiesResponse>(LIST_CITIES_QUERY, {
     variables: { isActive: true },
   });
@@ -365,7 +413,8 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
     }
     return unique.filter((guest) => !hiddenGuestIds.includes(guest.id));
   }, [customGuestProfiles, hiddenGuestIds, recentGuests]);
-  const results = (availabilityData?.searchAvailability || []).filter((item) => item.available);
+  const searchInventory = availabilityData?.searchAvailability || [];
+  const results = searchInventory.filter((item) => item.available);
   const groupedBuildings = useMemo<BuildingGroup[]>(() => {
     const map = new Map<number, BuildingGroup>();
     for (const item of results) {
@@ -380,14 +429,41 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
           propertyType: item.propertyType,
           slots: [item],
           minPrice: Number(item.totalAmount || 0),
+          maxPrice: Number(item.totalAmount || 0),
         });
       } else {
         existing.slots.push(item);
         existing.minPrice = Math.min(existing.minPrice, Number(item.totalAmount || 0));
+        existing.maxPrice = Math.max(existing.maxPrice, Number(item.totalAmount || 0));
       }
     }
     return Array.from(map.values()).sort((a, b) => a.minPrice - b.minPrice);
   }, [results]);
+
+  const layoutBuildingsById = useMemo<Map<number, BuildingGroup>>(() => {
+    const map = new Map<number, BuildingGroup>();
+    for (const item of searchInventory) {
+      const existing = map.get(item.buildingId);
+      if (!existing) {
+        map.set(item.buildingId, {
+          buildingId: item.buildingId,
+          buildingName: item.buildingName,
+          hmsDisplayName: item.hmsDisplayName,
+          cityName: item.cityName,
+          location: item.location,
+          propertyType: item.propertyType,
+          slots: [item],
+          minPrice: Number(item.totalAmount || 0),
+          maxPrice: Number(item.totalAmount || 0),
+        });
+      } else {
+        existing.slots.push(item);
+        existing.minPrice = Math.min(existing.minPrice, Number(item.totalAmount || 0));
+        existing.maxPrice = Math.max(existing.maxPrice, Number(item.totalAmount || 0));
+      }
+    }
+    return map;
+  }, [searchInventory]);
 
   const layoutFloors = useMemo<FloorMeta[]>(() => {
     if (!layoutBuilding) return [];
@@ -1202,25 +1278,63 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
                       slot.bookingTargetId === selectedOption?.bookingTargetId &&
                       slot.inventoryType === selectedOption?.inventoryType,
                   ).length;
+                  const mediaItems = uniqueMediaUrls(group);
+                  const hasAnyMedia = mediaItems.some((item) => Boolean(item.url));
                   return (
                     <article
                       key={`building-${group.buildingId}`}
                       className={`${styles.buildingCard} ${selectedCount > 0 ? styles.buildingCardSelected : ""}`}
                     >
                       <div className={styles.cardMedia}>
+                        <div className="mb-2 grid grid-cols-2 gap-2 rounded-2xl bg-black/15 p-2">
+                          {mediaItems.map((item, idx) => (
+                            <button
+                              key={`${group.buildingId}-media-${idx}`}
+                              type="button"
+                              onClick={() => {
+                                if (item.url) {
+                                  openGallery(mediaItems, idx);
+                                }
+                              }}
+                              className="relative h-16 overflow-hidden rounded-xl border border-white/20 text-left"
+                              style={{
+                                background: item.url ? "transparent" : "rgba(255,255,255,0.08)",
+                                cursor: item.url ? "pointer" : "default",
+                              }}
+                            >
+                              {item.url ? (
+                                <img
+                                  src={item.url}
+                                  alt={`${group.buildingName} ${item.label}`}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold uppercase tracking-[0.08em] text-white/70">
+                                  No image
+                                </div>
+                              )}
+                              <span className="absolute bottom-1 left-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-white">
+                                {item.label}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                        {!hasAnyMedia ? (
+                          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-white/70">Upload building/floor/room/bathroom images from Subsite Dashboard</p>
+                        ) : null}
                         <div className={styles.cardMediaContent}>
-                          <div className="space-y-3">
-                            <span className={styles.mediaBadge}>
-                              {group.propertyType === "lodge" ? "Lodge layout" : "PG layout"}
-                            </span>
-                            <div>
-                              <h3 className="text-3xl font-semibold tracking-tight">{group.buildingName}</h3>
-                              <p className="mt-2 text-sm text-white/75">{group.hmsDisplayName}</p>
-                            </div>
-                          </div>
                           <div className={styles.priceBox}>
-                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">From price</p>
-                            <p className="mt-1 text-3xl font-semibold tracking-tight">{formatCurrency(group.minPrice)}</p>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Room price range</p>
+                            <div className="mt-1 grid grid-cols-2 gap-2">
+                              <div>
+                                <p className="text-[10px] uppercase tracking-[0.12em] text-white/60">Min</p>
+                                <p className="text-xl font-semibold tracking-tight">{formatCurrency(group.minPrice)}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] uppercase tracking-[0.12em] text-white/60">Max</p>
+                                <p className="text-xl font-semibold tracking-tight">{formatCurrency(group.maxPrice)}</p>
+                              </div>
+                            </div>
                             <p className="mt-1 text-[11px] font-medium text-white/80">{group.slots.length} available slot{group.slots.length === 1 ? '' : 's'}</p>
                           </div>
                         </div>
@@ -1228,6 +1342,15 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
 
                       <div className={styles.cardBody}>
                           <div>
+                            <div className="mb-2 flex items-center gap-2">
+                              <span className={styles.mediaBadge} style={{ background: 'var(--brand-dim)', color: 'var(--brand-light)', boxShadow: 'none' }}>
+                                {group.propertyType === "lodge" ? "Lodge stay" : "PG stay"}
+                              </span>
+                            </div>
+
+                            <p className="text-xl font-bold tracking-tight">{group.buildingName}</p>
+                            <p className="mt-0.5 text-sm" style={{ color: "var(--text-secondary)" }}>{group.hmsDisplayName}</p>
+
                             <div className="flex flex-wrap items-center gap-1.5">
                               <span className="result-meta-chip">{group.propertyType === "pg" ? "PG" : "Lodge"}</span>
                               <span className="result-meta-chip"><FiGrid className="h-3 w-3" /> {group.slots.length} slot{group.slots.length === 1 ? "" : "s"}</span>
@@ -1239,15 +1362,14 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
                                 </span>
                               ) : null}
                             </div>
-
-                            <p className="mt-3 text-xl font-bold tracking-tight">{group.buildingName}</p>
-                            <p className="mt-0.5 text-sm" style={{ color: "var(--text-secondary)" }}>{group.hmsDisplayName} · {group.cityName}</p>
+                            <p className="mt-2 text-sm" style={{ color: "var(--text-secondary)" }}>{group.cityName}</p>
                           </div>
 
                           <button
                             onClick={() => {
-                              setLayoutBuilding(group);
-                              const sortedFloors = Array.from(new Set(group.slots.map((slot) => slot.floorId ?? slot.floorNumber ?? 0))).sort((a, b) => a - b);
+                              const layoutGroup = layoutBuildingsById.get(group.buildingId) || group;
+                              setLayoutBuilding(layoutGroup);
+                              const sortedFloors = Array.from(new Set(layoutGroup.slots.map((slot) => slot.floorId ?? slot.floorNumber ?? 0))).sort((a, b) => a - b);
                               setLayoutFloor(sortedFloors[0] ?? null);
                             }}
                             className={`${styles.selectBtn} ${selectedCount > 0 ? styles.selectBtnSelected : ""}`}
@@ -1497,7 +1619,7 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
 
             <div className="mt-4 flex-1 overflow-y-auto pr-1">
               <div className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: "var(--brand-border)", background: "var(--brand-dim)", color: "var(--text-secondary)" }}>
-                Layout shows only available and active {layoutBuilding.propertyType === 'lodge' ? 'rooms' : 'beds'}.
+                Layout shows all {layoutBuilding.propertyType === 'lodge' ? 'rooms' : 'beds'}. Unavailable items are disabled.
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -1535,21 +1657,32 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
                           const isSelected =
                             selectedOption?.bookingTargetId === slot.bookingTargetId &&
                             selectedOption?.inventoryType === slot.inventoryType;
+                          const isUnavailable = !slot.available;
+                          const slotStatusLabel = getAvailabilityLabel(slot);
                           return (
                             <button
                               key={`${slot.inventoryType}-${slot.bookingTargetId}`}
                               type="button"
                               onClick={() => {
+                                if (isUnavailable) return;
                                 setSelectedOption(slot);
                                 setLayoutBuilding(null);
                                 setFlowStep("inventory");
                               }}
                               className="rounded-lg border px-2.5 py-2 text-left transition"
-                              style={isSelected ? { borderColor: "var(--brand)", background: "var(--brand-dim)" } : { borderColor: "var(--border)", background: "var(--bg-surface)" }}
+                              disabled={isUnavailable}
+                              style={
+                                isSelected
+                                  ? { borderColor: "var(--brand)", background: "var(--brand-dim)" }
+                                  : isUnavailable
+                                    ? { borderColor: "var(--border-strong)", background: "var(--bg-elevated)", color: "var(--text-muted)", opacity: 0.72, cursor: "not-allowed" }
+                                    : { borderColor: "var(--border)", background: "var(--bg-surface)" }
+                              }
                             >
                               <p className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={subtleTextStyle}>Bed</p>
                               <p className="mt-0.5 text-xs font-semibold">{slot.bedNumber}</p>
-                              <p className="mt-1 text-[11px] font-semibold" style={{ color: "var(--brand)" }}>{formatCurrency(slot.totalAmount)}</p>
+                              <p className="mt-1 text-[10px] font-semibold" style={isUnavailable ? subtleTextStyle : { color: "var(--positive)" }}>{slotStatusLabel}</p>
+                              <p className="mt-1 text-[11px] font-semibold" style={isUnavailable ? subtleTextStyle : { color: "var(--brand)" }}>{formatCurrency(slot.totalAmount)}</p>
                             </button>
                           );
                         })}
@@ -1563,22 +1696,33 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
                     const isSelected =
                       selectedOption?.bookingTargetId === slot.bookingTargetId &&
                       selectedOption?.inventoryType === slot.inventoryType;
+                    const isUnavailable = !slot.available;
+                    const slotStatusLabel = getAvailabilityLabel(slot);
                     return (
                       <button
                         key={`${slot.inventoryType}-${slot.bookingTargetId}`}
                         type="button"
                         onClick={() => {
+                          if (isUnavailable) return;
                           setSelectedOption(slot);
                           setLayoutBuilding(null);
                           setFlowStep("inventory");
                         }}
                         className="rounded-2xl border px-3 py-3 text-left transition"
-                        style={isSelected ? { borderColor: "var(--brand)", background: "var(--brand-dim)" } : { borderColor: "var(--border)", background: "var(--bg-surface)" }}
+                        disabled={isUnavailable}
+                        style={
+                          isSelected
+                            ? { borderColor: "var(--brand)", background: "var(--brand-dim)" }
+                            : isUnavailable
+                              ? { borderColor: "var(--border-strong)", background: "var(--bg-elevated)", color: "var(--text-muted)", opacity: 0.72, cursor: "not-allowed" }
+                              : { borderColor: "var(--border)", background: "var(--bg-surface)" }
+                        }
                       >
                         <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={subtleTextStyle}>Room</p>
                         <p className="mt-1 text-lg font-semibold">{slot.roomNumber}</p>
                         <p className="mt-1 text-xs" style={subtleTextStyle}>{formatRoomTypeLabel(slot.roomType)}</p>
-                        <p className="mt-2 text-sm font-semibold" style={{ color: "var(--brand)" }}>{formatCurrency(slot.totalAmount)}</p>
+                        <p className="mt-1 text-[11px] font-semibold" style={isUnavailable ? subtleTextStyle : { color: "var(--positive)" }}>{slotStatusLabel}</p>
+                        <p className="mt-2 text-sm font-semibold" style={isUnavailable ? subtleTextStyle : { color: "var(--brand)" }}>{formatCurrency(slot.totalAmount)}</p>
                       </button>
                     );
                   })}
@@ -1586,7 +1730,7 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
               )}
               {layoutVisibleSlots.length === 0 ? (
                 <div className="mt-4 rounded-xl border border-dashed px-4 py-5 text-center text-sm" style={{ borderColor: "var(--border-strong)", background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
-                  No available slots on this floor for selected dates.
+                  No slots found on this floor.
                 </div>
               ) : null}
             </div>
@@ -1650,6 +1794,7 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
                 multiple={false}
                 accept="image/*,.pdf"
                 label={isAdminMode ? "Upload Aadhaar proof (optional)" : "Upload Aadhaar proof"}
+                compact
                 showUploadedList
                 onUploadComplete={handleGuestDraftUpload}
                 onUploadError={(message) => setFormError(message)}
@@ -1672,6 +1817,58 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
                 style={brandButtonStyle}
               >
                 Save and apply
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isGalleryModalOpen && galleryItems.length > 0 ? (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsGalleryModalOpen(false);
+            }
+          }}
+        >
+          <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+              <p className="text-sm font-semibold text-slate-100">
+                {galleryItems[galleryIndex]?.label || "Image"} preview
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsGalleryModalOpen(false)}
+                className="rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="relative flex items-center justify-center bg-slate-900 p-3">
+              <button
+                type="button"
+                onClick={goPrevGallery}
+                className="absolute left-3 z-10 rounded-full border border-slate-600 bg-slate-900/90 p-2 text-slate-100"
+                aria-label="Previous image"
+              >
+                <FiChevronLeft className="h-5 w-5" />
+              </button>
+
+              <img
+                src={galleryItems[galleryIndex]?.url}
+                alt={galleryItems[galleryIndex]?.label || "Preview"}
+                className="max-h-[72vh] w-auto max-w-full rounded-lg border border-slate-700 bg-black/20 object-contain"
+              />
+
+              <button
+                type="button"
+                onClick={goNextGallery}
+                className="absolute right-3 z-10 rounded-full border border-slate-600 bg-slate-900/90 p-2 text-slate-100"
+                aria-label="Next image"
+              >
+                <FiChevronRight className="h-5 w-5" />
               </button>
             </div>
           </div>
@@ -1713,4 +1910,44 @@ export default function PublicBookingV2Organism({ mode = "public", defaultStayDu
       ) : null}
     </div>
   );
+}
+
+function uniqueMediaUrls(group: BuildingGroup): Array<{ url: string; label: string }> {
+  const bucket: Record<string, string> = {
+    Building: "",
+    Floor: "",
+    Room: "",
+    Bathroom: "",
+  };
+  const collected: string[] = [];
+  for (const slot of group.slots) {
+    for (const media of slot.galleryImages || []) {
+      if (media) collected.push(media);
+    }
+    if (slot.imageUrl) {
+      collected.push(slot.imageUrl);
+    }
+  }
+  const normalized = Array.from(new Set(collected.filter(Boolean))).map((url) => normalizeBackendAssetUrl(url));
+
+  for (const url of normalized) {
+    const lower = url.toLowerCase();
+    if (!bucket.Building && lower.includes("/building_image/")) bucket.Building = url;
+    else if (!bucket.Floor && lower.includes("/floor_image/")) bucket.Floor = url;
+    else if (!bucket.Room && lower.includes("/room_image/")) bucket.Room = url;
+    else if (!bucket.Bathroom && lower.includes("/bathroom_image/")) bucket.Bathroom = url;
+  }
+
+  const fallbackQueue = normalized.filter((url) => !Object.values(bucket).includes(url));
+  if (!bucket.Building && fallbackQueue[0]) bucket.Building = fallbackQueue.shift() || "";
+  if (!bucket.Floor && fallbackQueue[0]) bucket.Floor = fallbackQueue.shift() || "";
+  if (!bucket.Room && fallbackQueue[0]) bucket.Room = fallbackQueue.shift() || "";
+  if (!bucket.Bathroom && fallbackQueue[0]) bucket.Bathroom = fallbackQueue.shift() || "";
+
+  return [
+    { label: "Building", url: bucket.Building },
+    { label: "Floor", url: bucket.Floor },
+    { label: "Room", url: bucket.Room },
+    { label: "Bathroom", url: bucket.Bathroom },
+  ];
 }

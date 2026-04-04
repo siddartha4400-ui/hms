@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 
+from django.contrib.auth.models import Group
 from django.contrib.auth.models import User as DjangoUser
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
@@ -17,6 +18,9 @@ class BookingServiceTests(TestCase):
     def setUp(self):
         self.owner = DjangoUser.objects.create_user(username="owner", email="owner@example.com", password="secret123")
         self.customer = DjangoUser.objects.create_user(username="customer", email="customer@example.com", password="secret123")
+        self.site_admin = DjangoUser.objects.create_user(username="siteadmin", email="siteadmin@example.com", password="secret123")
+        site_admin_group, _ = Group.objects.get_or_create(name="site_admin")
+        self.site_admin.groups.add(site_admin_group)
         self.hms = HMS.objects.create(
             hms_name="samplelms",
             hms_type=1,
@@ -219,3 +223,101 @@ class BookingServiceTests(TestCase):
         self.assertEqual(updated_count, 1)
         self.assertEqual(expired_pending.status, "cancelled")
         self.assertEqual(active_pending.status, "pending")
+
+    def test_approved_future_bed_booking_does_not_block_non_overlapping_dates(self):
+        attachment = self._attachment()
+        booking = BookingService.create_booking(
+            {
+                "inventory_type": "bed",
+                "bed_id": self.pg_bed.id,
+                "check_in": (date.today() + timedelta(days=5)).isoformat(),
+                "check_out": (date.today() + timedelta(days=6)).isoformat(),
+                "guest_count": 1,
+                "payment_method": "cod",
+                "guests": [
+                    {
+                        "full_name": "PG Guest",
+                        "mobile_number": "9999999999",
+                        "aadhaar_attachment_id": attachment.id,
+                    }
+                ],
+            },
+            actor=self.customer,
+        )
+
+        BookingService.approve_booking(booking["booking_reference"], actor=self.site_admin, company_id=self.hms.id)
+        self.pg_bed.refresh_from_db()
+        self.assertEqual(self.pg_bed.status, "available")
+
+        options = AvailabilityService.search(
+            {
+                "city_id": self.city.id,
+                "check_in": (date.today() + timedelta(days=7)).isoformat(),
+                "check_out": (date.today() + timedelta(days=8)).isoformat(),
+                "guest_count": 1,
+                "property_type": "pg",
+            }
+        )
+        bed_option = next(item for item in options if item["bed_id"] == self.pg_bed.id)
+        self.assertTrue(bed_option["available"])
+        self.assertFalse(bed_option["is_booked"])
+
+    def test_check_in_marks_bed_occupied(self):
+        attachment = self._attachment()
+        booking = BookingService.create_booking(
+            {
+                "inventory_type": "bed",
+                "bed_id": self.pg_bed.id,
+                "check_in": date.today().isoformat(),
+                "check_out": (date.today() + timedelta(days=1)).isoformat(),
+                "guest_count": 1,
+                "payment_method": "cod",
+                "guests": [
+                    {
+                        "full_name": "PG CheckIn",
+                        "mobile_number": "9999999999",
+                        "aadhaar_attachment_id": attachment.id,
+                    }
+                ],
+            },
+            actor=self.customer,
+        )
+
+        BookingService.approve_booking(booking["booking_reference"], actor=self.site_admin, company_id=self.hms.id)
+        BookingService.check_in_booking(booking["booking_reference"], actor=self.site_admin, company_id=self.hms.id)
+
+        self.pg_bed.refresh_from_db()
+        self.assertEqual(self.pg_bed.status, "occupied")
+
+    def test_stale_occupied_bed_status_does_not_block_non_overlapping_search(self):
+        Booking.objects.create(
+            booking_reference=f"BKTEST{Booking.objects.count() + 1:04d}",
+            hms=self.hms,
+            city=self.city,
+            building=self.pg_building,
+            room=self.pg_room,
+            bed=self.pg_bed,
+            inventory_type="bed",
+            status="confirmed",
+            payment_method="manual_booking",
+            guest_count=1,
+            check_in=date(2026, 4, 5),
+            check_out=date(2026, 4, 6),
+            total_amount=400,
+            booked_by=self.owner,
+        )
+        self.pg_bed.status = "occupied"
+        self.pg_bed.save(update_fields=["status", "updated_at"])
+
+        options = AvailabilityService.search(
+            {
+                "city_id": self.city.id,
+                "check_in": date(2026, 4, 7).isoformat(),
+                "check_out": date(2026, 4, 8).isoformat(),
+                "guest_count": 1,
+                "property_type": "pg",
+            }
+        )
+        bed_option = next(item for item in options if item["bed_id"] == self.pg_bed.id)
+        self.assertTrue(bed_option["available"])
+        self.assertFalse(bed_option["is_booked"])

@@ -22,6 +22,7 @@ import {
 import { ThemedDatePicker, ThemedSelect } from "@/components";
 import AttachmentUploader, { UploadedAttachment } from "@/components/AttachmentUploader";
 import { AUTH_CHANGED_EVENT, getValidAuthToken } from "@/lib/auth-token";
+import { normalizeBackendAssetUrl } from "@/lib/backend-url";
 import {
   LOGIN_MUTATION,
   VERIFY_LOGIN_OTP_MUTATION,
@@ -44,6 +45,7 @@ type AvailabilityOption = {
   hmsName: string;
   hmsDisplayName: string;
   imageUrl?: string | null;
+  galleryImages?: string[] | null;
   cityId: number;
   cityName: string;
   buildingId: number;
@@ -62,6 +64,10 @@ type AvailabilityOption = {
   pricePerMonth?: number | null;
   totalAmount?: number | null;
   available: boolean;
+  isActive?: boolean | null;
+  inventoryStatus?: string | null;
+  isBooked?: boolean | null;
+  availabilityState?: string | null;
 };
 
 type BookingGuest = {
@@ -205,6 +211,22 @@ function formatRoomTypeLabel(roomType?: string | null): string {
   return roomType || "Lodge room";
 }
 
+function getAvailabilityLabel(slot: AvailabilityOption): string {
+  const state = (slot.availabilityState || "").toLowerCase();
+  if (state === "available") return "Available";
+  if (state === "booked") return "Booked";
+  if (state === "maintenance") return "Maintenance";
+  if (state === "occupied") return "Occupied";
+  if (state === "inactive") return "Disabled";
+
+  if (slot.isBooked) return "Booked";
+  if (slot.isActive === false) return "Disabled";
+  const inventoryStatus = (slot.inventoryStatus || "").toLowerCase();
+  if (inventoryStatus === "maintenance") return "Maintenance";
+  if (inventoryStatus === "occupied") return "Occupied";
+  return slot.available ? "Available" : "Unavailable";
+}
+
 function stayLength(checkIn: string, checkOut: string): number {
   const start = new Date(checkIn);
   const end = new Date(checkOut);
@@ -346,7 +368,8 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
     }
     return unique.filter((guest) => !hiddenGuestIds.includes(guest.id));
   }, [customGuestProfiles, hiddenGuestIds, recentGuests]);
-  const results = (availabilityData?.searchAvailability || []).filter((item) => item.available);
+  const searchInventory = availabilityData?.searchAvailability || [];
+  const results = searchInventory.filter((item) => item.available);
   const groupedBuildings = useMemo<BuildingGroup[]>(() => {
     const map = new Map<number, BuildingGroup>();
     for (const item of results) {
@@ -369,6 +392,29 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
     }
     return Array.from(map.values()).sort((a, b) => a.minPrice - b.minPrice);
   }, [results]);
+
+  const layoutBuildingsById = useMemo<Map<number, BuildingGroup>>(() => {
+    const map = new Map<number, BuildingGroup>();
+    for (const item of searchInventory) {
+      const existing = map.get(item.buildingId);
+      if (!existing) {
+        map.set(item.buildingId, {
+          buildingId: item.buildingId,
+          buildingName: item.buildingName,
+          hmsDisplayName: item.hmsDisplayName,
+          cityName: item.cityName,
+          location: item.location,
+          propertyType: item.propertyType,
+          slots: [item],
+          minPrice: Number(item.totalAmount || 0),
+        });
+      } else {
+        existing.slots.push(item);
+        existing.minPrice = Math.min(existing.minPrice, Number(item.totalAmount || 0));
+      }
+    }
+    return map;
+  }, [searchInventory]);
 
   const layoutFloors = useMemo<FloorMeta[]>(() => {
     if (!layoutBuilding) return [];
@@ -1180,6 +1226,7 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
                       slot.bookingTargetId === selectedOption?.bookingTargetId &&
                       slot.inventoryType === selectedOption?.inventoryType,
                   ).length;
+                  const mediaItems = uniqueMediaUrls(group);
                   return (
                     <article
                       key={`building-${group.buildingId}`}
@@ -1188,6 +1235,22 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
                     >
                       <div className="grid gap-0 md:grid-cols-[0.42fr_0.58fr]">
                         <div className="booking-result-media min-h-[220px] p-6 text-white" style={{ background: "linear-gradient(135deg, var(--brand), var(--action))" }}>
+                          {mediaItems.length > 0 ? (
+                            <div className="mb-4 flex gap-2 overflow-x-auto rounded-2xl bg-black/15 p-2 snap-x snap-mandatory">
+                              {mediaItems.map((item, idx) => (
+                                <div key={`${group.buildingId}-media-${idx}`} className="relative h-20 w-28 shrink-0 snap-start overflow-hidden rounded-xl border border-white/20">
+                                  <img
+                                    src={item.url}
+                                    alt={`${group.buildingName} ${item.label}`}
+                                    className="h-full w-full object-cover"
+                                  />
+                                  <span className="absolute bottom-1 left-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-white">
+                                    {item.label}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
                           <div className="flex h-full flex-col justify-between">
                             <div className="space-y-3">
                               <span className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-white/90">
@@ -1226,8 +1289,9 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
 
                           <button
                             onClick={() => {
-                              setLayoutBuilding(group);
-                              const sortedFloors = Array.from(new Set(group.slots.map((slot) => slot.floorId ?? slot.floorNumber ?? 0))).sort((a, b) => a - b);
+                              const layoutGroup = layoutBuildingsById.get(group.buildingId) || group;
+                              setLayoutBuilding(layoutGroup);
+                              const sortedFloors = Array.from(new Set(layoutGroup.slots.map((slot) => slot.floorId ?? slot.floorNumber ?? 0))).sort((a, b) => a - b);
                               setLayoutFloor(sortedFloors[0] ?? null);
                             }}
                             className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold uppercase tracking-[0.14em] transition"
@@ -1482,7 +1546,7 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
 
             <div className="mt-4 flex-1 overflow-y-auto pr-1">
               <div className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: "var(--brand-border)", background: "var(--brand-dim)", color: "var(--text-secondary)" }}>
-                Layout shows only available and active {layoutBuilding.propertyType === 'lodge' ? 'rooms' : 'beds'}.
+                Layout shows all {layoutBuilding.propertyType === 'lodge' ? 'rooms' : 'beds'}. Unavailable items are disabled.
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -1520,21 +1584,32 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
                           const isSelected =
                             selectedOption?.bookingTargetId === slot.bookingTargetId &&
                             selectedOption?.inventoryType === slot.inventoryType;
+                          const isUnavailable = !slot.available;
+                          const slotStatusLabel = getAvailabilityLabel(slot);
                           return (
                             <button
                               key={`${slot.inventoryType}-${slot.bookingTargetId}`}
                               type="button"
                               onClick={() => {
+                                if (isUnavailable) return;
                                 setSelectedOption(slot);
                                 setLayoutBuilding(null);
                                 setFlowStep("inventory");
                               }}
                               className="rounded-lg border px-2.5 py-2 text-left transition"
-                              style={isSelected ? { borderColor: "var(--brand)", background: "var(--brand-dim)" } : { borderColor: "var(--border)", background: "var(--bg-surface)" }}
+                              disabled={isUnavailable}
+                              style={
+                                isSelected
+                                  ? { borderColor: "var(--brand)", background: "var(--brand-dim)" }
+                                  : isUnavailable
+                                    ? { borderColor: "var(--border-strong)", background: "var(--bg-elevated)", color: "var(--text-muted)", opacity: 0.72, cursor: "not-allowed" }
+                                    : { borderColor: "var(--border)", background: "var(--bg-surface)" }
+                              }
                             >
                               <p className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={subtleTextStyle}>Bed</p>
                               <p className="mt-0.5 text-xs font-semibold">{slot.bedNumber}</p>
-                              <p className="mt-1 text-[11px] font-semibold" style={{ color: "var(--brand)" }}>{formatCurrency(slot.totalAmount)}</p>
+                              <p className="mt-1 text-[10px] font-semibold" style={isUnavailable ? subtleTextStyle : { color: "var(--positive)" }}>{slotStatusLabel}</p>
+                              <p className="mt-1 text-[11px] font-semibold" style={isUnavailable ? subtleTextStyle : { color: "var(--brand)" }}>{formatCurrency(slot.totalAmount)}</p>
                             </button>
                           );
                         })}
@@ -1548,22 +1623,33 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
                     const isSelected =
                       selectedOption?.bookingTargetId === slot.bookingTargetId &&
                       selectedOption?.inventoryType === slot.inventoryType;
+                    const isUnavailable = !slot.available;
+                    const slotStatusLabel = getAvailabilityLabel(slot);
                     return (
                       <button
                         key={`${slot.inventoryType}-${slot.bookingTargetId}`}
                         type="button"
                         onClick={() => {
+                          if (isUnavailable) return;
                           setSelectedOption(slot);
                           setLayoutBuilding(null);
                           setFlowStep("inventory");
                         }}
                         className="rounded-2xl border px-3 py-3 text-left transition"
-                        style={isSelected ? { borderColor: "var(--brand)", background: "var(--brand-dim)" } : { borderColor: "var(--border)", background: "var(--bg-surface)" }}
+                        disabled={isUnavailable}
+                        style={
+                          isSelected
+                            ? { borderColor: "var(--brand)", background: "var(--brand-dim)" }
+                            : isUnavailable
+                              ? { borderColor: "var(--border-strong)", background: "var(--bg-elevated)", color: "var(--text-muted)", opacity: 0.72, cursor: "not-allowed" }
+                              : { borderColor: "var(--border)", background: "var(--bg-surface)" }
+                        }
                       >
                         <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={subtleTextStyle}>Room</p>
                         <p className="mt-1 text-lg font-semibold">{slot.roomNumber}</p>
                         <p className="mt-1 text-xs" style={subtleTextStyle}>{formatRoomTypeLabel(slot.roomType)}</p>
-                        <p className="mt-2 text-sm font-semibold" style={{ color: "var(--brand)" }}>{formatCurrency(slot.totalAmount)}</p>
+                        <p className="mt-1 text-[11px] font-semibold" style={isUnavailable ? subtleTextStyle : { color: "var(--positive)" }}>{slotStatusLabel}</p>
+                        <p className="mt-2 text-sm font-semibold" style={isUnavailable ? subtleTextStyle : { color: "var(--brand)" }}>{formatCurrency(slot.totalAmount)}</p>
                       </button>
                     );
                   })}
@@ -1571,7 +1657,7 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
               )}
               {layoutVisibleSlots.length === 0 ? (
                 <div className="mt-4 rounded-xl border border-dashed px-4 py-5 text-center text-sm" style={{ borderColor: "var(--border-strong)", background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
-                  No available slots on this floor for selected dates.
+                  No slots found on this floor.
                 </div>
               ) : null}
             </div>
@@ -1635,6 +1721,7 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
                 multiple={false}
                 accept="image/*,.pdf"
                 label={isAdminMode ? "Upload Aadhaar proof (optional)" : "Upload Aadhaar proof"}
+                compact
                 showUploadedList
                 onUploadComplete={handleGuestDraftUpload}
                 onUploadError={(message) => setFormError(message)}
@@ -1698,4 +1785,22 @@ export default function PublicBookingOrganism({ mode = "public", defaultStayDura
       ) : null}
     </div>
   );
+}
+
+function uniqueMediaUrls(group: BuildingGroup): Array<{ url: string; label: string }> {
+  const labels = ["Building", "Floor", "Room", "Bathroom"];
+  const collected: string[] = [];
+  for (const slot of group.slots) {
+    for (const media of slot.galleryImages || []) {
+      if (media) collected.push(media);
+    }
+    if (slot.imageUrl) {
+      collected.push(slot.imageUrl);
+    }
+  }
+  const normalized = Array.from(new Set(collected.filter(Boolean))).map((url) => normalizeBackendAssetUrl(url));
+  return normalized.map((url, index) => ({
+    url,
+    label: labels[index] || `Preview ${index + 1}`,
+  }));
 }

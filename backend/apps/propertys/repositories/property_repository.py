@@ -30,7 +30,14 @@ class PropertyRepository:
 
     @staticmethod
     def list_buildings(company_id=None, city_id=None, is_active=None):
-        queryset = Building.objects.select_related("company", "city")
+        queryset = Building.objects.select_related(
+            "company",
+            "city",
+            "building_image_attachment",
+            "floor_image_attachment",
+            "room_image_attachment",
+            "bathroom_image_attachment",
+        )
         if company_id is not None:
             queryset = queryset.filter(company_id=company_id)
         if city_id is not None:
@@ -41,7 +48,14 @@ class PropertyRepository:
 
     @staticmethod
     def get_building(building_id: int):
-        return Building.objects.filter(id=building_id).select_related("company", "city").first()
+        return Building.objects.filter(id=building_id).select_related(
+            "company",
+            "city",
+            "building_image_attachment",
+            "floor_image_attachment",
+            "room_image_attachment",
+            "bathroom_image_attachment",
+        ).first()
 
     @staticmethod
     def create_building(**kwargs):

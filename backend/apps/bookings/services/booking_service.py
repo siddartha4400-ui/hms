@@ -318,25 +318,23 @@ class BookingService:
 
 		if booking.inventory_type == "room":
 			room = BookingRepository.get_room_for_update(booking.room_id)
-			if not room or not room.is_active or room.status != "available":
+			if not room or not room.is_active or room.status == "maintenance":
 				BookingRepository.update_booking(booking, status="cancelled")
 				raise ApiException("This room is no longer available. The request was cancelled.")
 			if BookingRepository.has_overlapping_room_booking(room.id, booking.check_in, booking.check_out):
 				BookingRepository.update_booking(booking, status="cancelled")
 				raise ApiException("This room was already confirmed for another guest. The request was cancelled.")
 			BookingRepository.update_booking(booking, status="confirmed")
-			BookingRepository.update_room(room, status="occupied")
 			BookingRepository.list_overlapping_pending_room_bookings(room.id, booking.check_in, booking.check_out, booking.id).update(status="cancelled")
 		elif booking.inventory_type == "bed":
 			bed = BookingRepository.get_bed_for_update(booking.bed_id)
-			if not bed or not bed.is_active or bed.status != "available":
+			if not bed or not bed.is_active or bed.status == "maintenance":
 				BookingRepository.update_booking(booking, status="cancelled")
 				raise ApiException("This bed is no longer available. The request was cancelled.")
 			if BookingRepository.has_overlapping_bed_booking(bed.id, booking.check_in, booking.check_out):
 				BookingRepository.update_booking(booking, status="cancelled")
 				raise ApiException("This bed was already confirmed for another guest. The request was cancelled.")
 			BookingRepository.update_booking(booking, status="confirmed")
-			BookingRepository.update_bed(bed, status="occupied")
 			BookingRepository.list_overlapping_pending_bed_bookings(bed.id, booking.check_in, booking.check_out, booking.id).update(status="cancelled")
 		else:
 			raise ApiException("inventory_type must be either room or bed")
@@ -470,6 +468,17 @@ class BookingService:
 		if not BookingService._has_any_group(actor, {"root_admin"}):
 			if normalized_company_id is None or booking.hms_id != normalized_company_id:
 				raise ApiException("Booking is outside your subsite", status_code=403)
+
+		if booking.inventory_type == "room" and booking.room_id:
+			room = BookingRepository.get_room_for_update(booking.room_id)
+			if not room or not room.is_active or room.status == "maintenance":
+				raise ApiException("This room is not available for check-in")
+			BookingRepository.update_room(room, status="occupied")
+		if booking.inventory_type == "bed" and booking.bed_id:
+			bed = BookingRepository.get_bed_for_update(booking.bed_id)
+			if not bed or not bed.is_active or bed.status == "maintenance":
+				raise ApiException("This bed is not available for check-in")
+			BookingRepository.update_bed(bed, status="occupied")
 
 		BookingRepository.update_booking(booking, status="checked_in")
 		booking = BookingRepository.get_booking(booking.id)

@@ -67,8 +67,8 @@ services:
       - backend
     environment:
       - NGINX_ENVSUBST_FILTER=^NGINX_
-      - NGINX_MAIN_DOMAIN=${NGINX_MAIN_DOMAIN}
-      - NGINX_BACKEND_DOMAIN=${NGINX_BACKEND_DOMAIN}
+      - NGINX_MAIN_DOMAIN=${NGINX_MAIN_DOMAIN:-hms.local}
+      - NGINX_BACKEND_DOMAIN=${NGINX_BACKEND_DOMAIN:-backend.hms.local}
     ports:
       - "80:80"
       - "443:443"

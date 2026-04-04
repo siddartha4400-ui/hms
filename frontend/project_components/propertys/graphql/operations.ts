@@ -24,6 +24,15 @@ export const LIST_BUILDINGS_QUERY = gql`
       latitude
       longitude
       propertyType
+      buildingImageAttachmentId
+      floorImageAttachmentId
+      roomImageAttachmentId
+      bathroomImageAttachmentId
+      buildingImageUrl
+      floorImageUrl
+      roomImageUrl
+      bathroomImageUrl
+      galleryImages
       isActive
     }
   }
@@ -106,6 +115,10 @@ export const CREATE_BUILDING_MUTATION = gql`
     $latitude: Float
     $longitude: Float
     $propertyType: String!
+    $buildingImageAttachmentId: Int
+    $floorImageAttachmentId: Int
+    $roomImageAttachmentId: Int
+    $bathroomImageAttachmentId: Int
     $isActive: Boolean
   ) {
     createBuilding(
@@ -116,6 +129,10 @@ export const CREATE_BUILDING_MUTATION = gql`
       latitude: $latitude
       longitude: $longitude
       propertyType: $propertyType
+      buildingImageAttachmentId: $buildingImageAttachmentId
+      floorImageAttachmentId: $floorImageAttachmentId
+      roomImageAttachmentId: $roomImageAttachmentId
+      bathroomImageAttachmentId: $bathroomImageAttachmentId
       isActive: $isActive
     ) {
       success
@@ -136,6 +153,10 @@ export const UPDATE_BUILDING_MUTATION = gql`
     $latitude: Float
     $longitude: Float
     $propertyType: String
+    $buildingImageAttachmentId: Int
+    $floorImageAttachmentId: Int
+    $roomImageAttachmentId: Int
+    $bathroomImageAttachmentId: Int
     $isActive: Boolean
   ) {
     updateBuilding(
@@ -146,6 +167,10 @@ export const UPDATE_BUILDING_MUTATION = gql`
       latitude: $latitude
       longitude: $longitude
       propertyType: $propertyType
+      buildingImageAttachmentId: $buildingImageAttachmentId
+      floorImageAttachmentId: $floorImageAttachmentId
+      roomImageAttachmentId: $roomImageAttachmentId
+      bathroomImageAttachmentId: $bathroomImageAttachmentId
       isActive: $isActive
     ) {
       success

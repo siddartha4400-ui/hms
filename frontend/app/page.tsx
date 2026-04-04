@@ -1,5 +1,5 @@
-import HomeBookingClient from "./HomeBookingClient";
+import HomeBookingClientV2 from "./HomeBookingClientV2";
 
 export default function RootPage() {
-  return <HomeBookingClient />;
+  return <HomeBookingClientV2 />;
 }

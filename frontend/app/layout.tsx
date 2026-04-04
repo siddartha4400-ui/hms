@@ -17,6 +17,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "HotelSphere — Hospitality Management Platform",
   description: "Manage your entire hotel portfolio in one place. Real-time bookings, occupancy, and revenue across all properties.",
+  icons: {
+    icon: "/brand/hotel-sphere-icon.png",
+    shortcut: "/brand/hotel-sphere-icon.png",
+    apple: "/brand/hotel-sphere-icon.png",
+  },
 };
 
 // Runs before React hydration to avoid theme flash

@@ -27,7 +27,7 @@ docker compose --env-file .env.prod -f docker-compose.yml -f docker-compose.prod
 The selected root env file also picks service env files:
 
 - `.env.local` -> `backend/.env.local`, `frontend/.env.local`, `nginx/default.local.conf`
-- `.env.prod` -> `backend/.env.prod`, `frontend/.env.prod`, `nginx/default.prod.conf`
+- `.env.prod` -> `backend/.env.prod`, `frontend/.env.prod`, `nginx/default.prod.ssl.conf`
 
 Build targets are also mode-based:
 

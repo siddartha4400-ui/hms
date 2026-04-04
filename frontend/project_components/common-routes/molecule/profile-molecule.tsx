@@ -1,4 +1,5 @@
-import { FiUser, FiArrowLeft, FiPhone, FiMapPin, FiCamera, FiImage } from 'react-icons/fi';
+import { useState } from 'react';
+import { FiUser, FiArrowLeft, FiPhone, FiMapPin, FiEdit2, FiEye } from 'react-icons/fi';
 import Link from 'next/link';
 import { Button, InputBox, AttachmentUploader, PopupToast, ThemedDatePicker } from '@/components';
 import type { UploadedAttachment } from '@/components/AttachmentUploader';
@@ -43,6 +44,8 @@ export default function ProfileMolecule({
   onSubmit,
 }: ProfileMoleculeProps) {
   const initials = getInitials(formData.firstName, formData.lastName, formData.email);
+  const [isAvatarPreviewOpen, setIsAvatarPreviewOpen] = useState(false);
+  const [isAvatarHovered, setIsAvatarHovered] = useState(false);
 
   return (
     <div className="min-h-screen w-full p-4 sm:p-6" style={{ background: 'var(--bg-base)' }}>
@@ -78,29 +81,6 @@ export default function ProfileMolecule({
             <div className="rounded-2xl p-6" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
               <h2 className="text-lg font-semibold mb-5" style={{ color: 'var(--text-primary)' }}>Profile Photo</h2>
               <div className="flex flex-col items-center text-center">
-                <div className="relative mb-5">
-                  <div className="absolute inset-0 rounded-full bg-cyan-500/10 blur-2xl" />
-                  <div className="relative w-28 h-28 rounded-full overflow-hidden border border-cyan-500/30 flex items-center justify-center" style={{ background: 'var(--bg-elevated)' }}>
-                    {formData.profilePictureUrl ? (
-                      <img
-                        src={formData.profilePictureUrl}
-                        alt="Profile"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-3xl font-semibold text-cyan-300">{initials}</span>
-                    )}
-                  </div>
-                  <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-full bg-cyan-500 text-slate-950 flex items-center justify-center border-4 border-slate-900">
-                    <FiCamera className="w-4 h-4" />
-                  </div>
-                </div>
-
-                <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{formData.firstName || 'User'} {formData.lastName || ''}</p>
-                <p className="text-sm break-all" style={{ color: 'var(--text-secondary)' }}>{formData.email || 'No email available'}</p>
-              </div>
-
-              <div className="mt-6">
                 <AttachmentUploader
                   entityType="user-profile"
                   entityId={formData.id || 0}
@@ -109,19 +89,107 @@ export default function ProfileMolecule({
                   multiple={false}
                   accept="image/*"
                   disabled={loading || !profileLoaded || !formData.id}
-                  label="Upload profile image"
-                  className="bg-transparent"
                   showUploadedList={false}
+                  triggerOnly
+                  className="relative mb-5"
                   onUploadComplete={onAvatarUpload}
+                  triggerRenderer={({ openFilePicker, uploading, disabled }) => (
+                    <div
+                      className="relative"
+                      onMouseEnter={() => setIsAvatarHovered(true)}
+                      onMouseLeave={() => setIsAvatarHovered(false)}
+                    >
+                      {/* glow ring */}
+                      <div className="absolute inset-0 rounded-full bg-cyan-500/10 blur-2xl" />
+
+                      {/* avatar circle */}
+                      <div
+                        className="relative w-28 h-28 rounded-full overflow-hidden border-2 border-cyan-500/40 flex items-center justify-center"
+                        style={{ background: 'var(--bg-elevated)' }}
+                      >
+                        {/* image / initials – blur on hover */}
+                        {formData.profilePictureUrl ? (
+                          <img
+                            src={formData.profilePictureUrl}
+                            alt="Profile"
+                            style={{
+                              transition: 'filter 0.3s, transform 0.3s',
+                              filter: isAvatarHovered ? 'blur(3px) brightness(0.7)' : 'none',
+                              transform: isAvatarHovered ? 'scale(1.06)' : 'scale(1)',
+                            }}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span
+                            className="text-3xl font-semibold text-cyan-300"
+                            style={{
+                              transition: 'filter 0.3s',
+                              filter: isAvatarHovered ? 'blur(2px) brightness(0.6)' : 'none',
+                            }}
+                          >
+                            {initials}
+                          </span>
+                        )}
+
+                        {/* hover overlay – View button */}
+                        <div
+                          className="absolute inset-0 flex flex-col items-center justify-center rounded-full"
+                          style={{
+                            background: 'rgba(0,0,0,0.45)',
+                            opacity: isAvatarHovered ? 1 : 0,
+                            pointerEvents: isAvatarHovered ? 'auto' : 'none',
+                            transition: 'opacity 0.25s',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setIsAvatarPreviewOpen(true)}
+                            disabled={!formData.profilePictureUrl}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-full border border-white bg-white/15 px-4 py-1.5 text-[11px] font-bold uppercase tracking-widest text-white shadow backdrop-blur-sm hover:bg-white/30 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <FiEye className="h-3.5 w-3.5" />
+                            View
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* edit badge – fully round, triggers file picker */}
+                      <button
+                        type="button"
+                        onClick={openFilePicker}
+                        disabled={disabled}
+                        title={uploading ? 'Uploading…' : 'Change profile photo'}
+                        style={{
+                          position: 'absolute',
+                          bottom: '-4px',
+                          right: '-4px',
+                          zIndex: 40,
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '50%',
+                          border: '3px solid var(--bg-surface)',
+                          background: '#06b6d4',
+                          color: '#0f172a',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                          outline: 'none',
+                          transition: 'background 0.2s',
+                        }}
+                      >
+                        <FiEdit2 style={{ width: '16px', height: '16px' }} />
+                      </button>
+                    </div>
+                  )}
                 />
+
+                <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{formData.firstName || 'User'} {formData.lastName || ''}</p>
+                <p className="text-sm break-all" style={{ color: 'var(--text-secondary)' }}>{formData.email || 'No email available'}</p>
               </div>
 
-              <div className="mt-4 flex items-start gap-3 rounded-xl px-4 py-3" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-                <FiImage className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-                <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                  Upload a square image for the cleanest result. Your new profile picture will appear in the top navbar immediately.
-                </p>
-              </div>
             </div>
           </div>
 
@@ -265,6 +333,38 @@ export default function ProfileMolecule({
           </Button>
           </div>
         </form>
+
+        {isAvatarPreviewOpen && formData.profilePictureUrl ? (
+          <div
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/55 p-4"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) {
+                setIsAvatarPreviewOpen(false);
+              }
+            }}
+          >
+            <div className="w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+                <p className="text-sm font-semibold text-slate-100">Profile photo preview</p>
+                <button
+                  type="button"
+                  onClick={() => setIsAvatarPreviewOpen(false)}
+                  className="rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-200"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="max-h-[75vh] overflow-auto bg-slate-900 p-3">
+                <img
+                  src={formData.profilePictureUrl}
+                  alt="Profile preview"
+                  className="mx-auto max-h-[70vh] w-auto max-w-full rounded-lg border border-slate-700 bg-black/20 object-contain"
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

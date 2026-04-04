@@ -5,6 +5,7 @@ import { useMutation, useQuery } from '@apollo/client/react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { InputBox, PopupToast, ReusableConfirmModal, ReusableFormModal } from '@/components';
+import AttachmentUploader, { UploadedAttachment } from '@/components/AttachmentUploader';
 import { FiEdit2, FiMapPin, FiPlus, FiSquare, FiTrash2 } from 'react-icons/fi';
 import { getUserHmsId, getUserRole } from '@/lib/auth-token';
 import { LIST_HMS_QUERY } from '@/project_components/subsites/graphql/operations';
@@ -43,8 +44,23 @@ type Building = {
   location?: string;
   cityName?: string;
   propertyType: string;
+  buildingImageAttachmentId?: number | null;
+  floorImageAttachmentId?: number | null;
+  roomImageAttachmentId?: number | null;
+  bathroomImageAttachmentId?: number | null;
+  buildingImageUrl?: string | null;
+  floorImageUrl?: string | null;
+  roomImageUrl?: string | null;
+  bathroomImageUrl?: string | null;
+  galleryImages?: string[] | null;
   isActive: boolean;
 };
+
+type BuildingMediaKey =
+  | 'buildingImageAttachmentId'
+  | 'floorImageAttachmentId'
+  | 'roomImageAttachmentId'
+  | 'bathroomImageAttachmentId';
 type Floor = { id: number; floorNumber: number; description?: string; isActive: boolean };
 type Room = {
   id: number;
@@ -160,7 +176,15 @@ export default function SubsiteDashboardOrganism() {
   const [error, setError] = React.useState('');
 
   const [cityForm, setCityForm] = React.useState({ cityName: '', state: '', country: '' });
-  const [buildingForm, setBuildingForm] = React.useState({ name: '', location: '', propertyType: 'pg' });
+  const [buildingForm, setBuildingForm] = React.useState({
+    name: '',
+    location: '',
+    propertyType: 'pg',
+    buildingImageAttachmentId: null as number | null,
+    floorImageAttachmentId: null as number | null,
+    roomImageAttachmentId: null as number | null,
+    bathroomImageAttachmentId: null as number | null,
+  });
   const [floorForm, setFloorForm] = React.useState({ floorNumber: 1, description: '' });
   const [roomForm, setRoomForm] = React.useState({
     roomNumber: '',
@@ -256,6 +280,14 @@ export default function SubsiteDashboardOrganism() {
   const showError = (value: unknown) => {
     const text = value instanceof Error ? value.message : 'Operation failed';
     setError(text);
+  };
+
+  const updateBuildingMedia = (key: BuildingMediaKey, attachments: UploadedAttachment[]) => {
+    const first = attachments?.[0];
+    if (!first?.id) {
+      return;
+    }
+    setBuildingForm((current) => ({ ...current, [key]: first.id }));
   };
 
   const resetLevelsBelow = (level: 'subsite' | 'city' | 'building' | 'floor' | 'room') => {
@@ -361,6 +393,10 @@ export default function SubsiteDashboardOrganism() {
           name: buildingForm.name.trim(),
           location: buildingForm.location.trim() || null,
           propertyType: subsitePropertyType || buildingForm.propertyType,
+          buildingImageAttachmentId: buildingForm.buildingImageAttachmentId,
+          floorImageAttachmentId: buildingForm.floorImageAttachmentId,
+          roomImageAttachmentId: buildingForm.roomImageAttachmentId,
+          bathroomImageAttachmentId: buildingForm.bathroomImageAttachmentId,
           isActive: true,
         },
       });
@@ -377,7 +413,15 @@ export default function SubsiteDashboardOrganism() {
         setSelectedBuildingId(newBuildingId);
         resetLevelsBelow('building');
       }
-      setBuildingForm({ name: '', location: '', propertyType: subsitePropertyType || 'pg' });
+      setBuildingForm({
+        name: '',
+        location: '',
+        propertyType: subsitePropertyType || 'pg',
+        buildingImageAttachmentId: null,
+        floorImageAttachmentId: null,
+        roomImageAttachmentId: null,
+        bathroomImageAttachmentId: null,
+      });
       setIsBuildingModalOpen(false);
       setMessage(payload.message || 'Building created');
     } catch (e) {
@@ -440,6 +484,10 @@ export default function SubsiteDashboardOrganism() {
       name: building.name,
       location: building.location || '',
       propertyType: subsitePropertyType || building.propertyType || 'pg',
+      buildingImageAttachmentId: building.buildingImageAttachmentId || null,
+      floorImageAttachmentId: building.floorImageAttachmentId || null,
+      roomImageAttachmentId: building.roomImageAttachmentId || null,
+      bathroomImageAttachmentId: building.bathroomImageAttachmentId || null,
     });
     setIsBuildingModalOpen(true);
   };
@@ -462,6 +510,10 @@ export default function SubsiteDashboardOrganism() {
           name: buildingForm.name.trim(),
           location: buildingForm.location.trim() || null,
           propertyType: subsitePropertyType || buildingForm.propertyType,
+          buildingImageAttachmentId: buildingForm.buildingImageAttachmentId,
+          floorImageAttachmentId: buildingForm.floorImageAttachmentId,
+          roomImageAttachmentId: buildingForm.roomImageAttachmentId,
+          bathroomImageAttachmentId: buildingForm.bathroomImageAttachmentId,
         },
       });
 
@@ -474,7 +526,15 @@ export default function SubsiteDashboardOrganism() {
       await refetchBuildings();
       setIsBuildingModalOpen(false);
       setBuildingToEdit(null);
-      setBuildingForm({ name: '', location: '', propertyType: subsitePropertyType || 'pg' });
+      setBuildingForm({
+        name: '',
+        location: '',
+        propertyType: subsitePropertyType || 'pg',
+        buildingImageAttachmentId: null,
+        floorImageAttachmentId: null,
+        roomImageAttachmentId: null,
+        bathroomImageAttachmentId: null,
+      });
       setMessage(payload.message || 'Building updated');
     } catch (e) {
       showError(e);
@@ -975,7 +1035,15 @@ export default function SubsiteDashboardOrganism() {
                   disabled={buildingTab !== 'active'}
                   onClick={() => {
                     setBuildingToEdit(null);
-                    setBuildingForm({ name: '', location: '', propertyType: subsitePropertyType || 'pg' });
+                    setBuildingForm({
+                      name: '',
+                      location: '',
+                      propertyType: subsitePropertyType || 'pg',
+                      buildingImageAttachmentId: null,
+                      floorImageAttachmentId: null,
+                      roomImageAttachmentId: null,
+                      bathroomImageAttachmentId: null,
+                    });
                     setIsBuildingModalOpen(true);
                   }}
                   className="h-10 px-3 rounded-xl inline-flex items-center justify-center gap-2"
@@ -1326,7 +1394,15 @@ export default function SubsiteDashboardOrganism() {
         onClose={() => {
           setIsBuildingModalOpen(false);
           setBuildingToEdit(null);
-          setBuildingForm({ name: '', location: '', propertyType: subsitePropertyType || 'pg' });
+          setBuildingForm({
+            name: '',
+            location: '',
+            propertyType: subsitePropertyType || 'pg',
+            buildingImageAttachmentId: null,
+            floorImageAttachmentId: null,
+            roomImageAttachmentId: null,
+            bathroomImageAttachmentId: null,
+          });
         }}
         onSave={onSaveBuilding}
         saveLabel="Save"
@@ -1350,6 +1426,53 @@ export default function SubsiteDashboardOrganism() {
           <option value="pg">PG</option>
           <option value="lodge">Lodge</option>
         </select>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <AttachmentUploader
+            entityType="building_image"
+            entityId={buildingToEdit?.id || 0}
+            hmsId={selectedSubsiteId || getUserHmsId() || 0}
+            multiple={false}
+            accept="image/*"
+            compact
+            label="Building photos"
+            showUploadedList
+            onUploadComplete={(attachments) => updateBuildingMedia('buildingImageAttachmentId', attachments)}
+          />
+          <AttachmentUploader
+            entityType="floor_image"
+            entityId={buildingToEdit?.id || 0}
+            hmsId={selectedSubsiteId || getUserHmsId() || 0}
+            multiple={false}
+            accept="image/*"
+            compact
+            label="Floor image"
+            showUploadedList
+            onUploadComplete={(attachments) => updateBuildingMedia('floorImageAttachmentId', attachments)}
+          />
+          <AttachmentUploader
+            entityType="room_image"
+            entityId={buildingToEdit?.id || 0}
+            hmsId={selectedSubsiteId || getUserHmsId() || 0}
+            multiple={false}
+            accept="image/*"
+            compact
+            label="Room image"
+            showUploadedList
+            onUploadComplete={(attachments) => updateBuildingMedia('roomImageAttachmentId', attachments)}
+          />
+          <AttachmentUploader
+            entityType="bathroom_image"
+            entityId={buildingToEdit?.id || 0}
+            hmsId={selectedSubsiteId || getUserHmsId() || 0}
+            multiple={false}
+            accept="image/*"
+            compact
+            label="Bathroom image"
+            showUploadedList
+            onUploadComplete={(attachments) => updateBuildingMedia('bathroomImageAttachmentId', attachments)}
+          />
+        </div>
       </ReusableFormModal>
 
       <ReusableFormModal

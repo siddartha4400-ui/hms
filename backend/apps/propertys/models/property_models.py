@@ -1,6 +1,7 @@
 from django.contrib.auth.models import User as DjangoUser
 from django.db import models
 
+from apps.attachments.models import Attachment
 from apps.subsites.models import HMS
 
 
@@ -70,6 +71,34 @@ class Building(models.Model):
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     property_type = models.CharField(max_length=20, choices=PROPERTY_TYPE_CHOICES)
+    building_image_attachment = models.ForeignKey(
+        Attachment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="building_image_for_buildings",
+    )
+    floor_image_attachment = models.ForeignKey(
+        Attachment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="floor_image_for_buildings",
+    )
+    room_image_attachment = models.ForeignKey(
+        Attachment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="room_image_for_buildings",
+    )
+    bathroom_image_attachment = models.ForeignKey(
+        Attachment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bathroom_image_for_buildings",
+    )
     is_active = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

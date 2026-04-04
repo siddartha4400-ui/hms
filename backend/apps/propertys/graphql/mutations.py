@@ -89,6 +89,10 @@ class CreateBuildingMutation(graphene.Mutation):
         latitude = graphene.Float()
         longitude = graphene.Float()
         property_type = graphene.String(required=True)
+        building_image_attachment_id = graphene.Int()
+        floor_image_attachment_id = graphene.Int()
+        room_image_attachment_id = graphene.Int()
+        bathroom_image_attachment_id = graphene.Int()
         is_active = graphene.Boolean()
 
     success = graphene.Boolean()
@@ -114,6 +118,10 @@ class UpdateBuildingMutation(graphene.Mutation):
         latitude = graphene.Float()
         longitude = graphene.Float()
         property_type = graphene.String()
+        building_image_attachment_id = graphene.Int()
+        floor_image_attachment_id = graphene.Int()
+        room_image_attachment_id = graphene.Int()
+        bathroom_image_attachment_id = graphene.Int()
         is_active = graphene.Boolean()
 
     success = graphene.Boolean()

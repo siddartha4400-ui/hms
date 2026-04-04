@@ -1,5 +1,5 @@
-import DashboardOrganism from '@/project_components/dashboard/organisam/dashboard-organism';
+import DashboardV2Organism from '@/project_components/dashboard/organisam/dashboard-v2-organism';
 
 export default function DashboardPage() {
-  return <DashboardOrganism />;
+  return <DashboardV2Organism />;
 }

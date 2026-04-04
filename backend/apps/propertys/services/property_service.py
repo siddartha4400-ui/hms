@@ -1,10 +1,20 @@
 from apps.subsites.models import HMS
+from apps.attachments.models import Attachment
 from apps.propertys.repositories import PropertyRepository
 from apps.propertys.validators import PropertyValidator
 from common.exceptions import ApiException
 
 
 class PropertyService:
+    @staticmethod
+    def _resolve_attachment(attachment_id, field_name: str):
+        if attachment_id in [None, ""]:
+            return None
+        attachment = Attachment.objects.filter(id=attachment_id).first()
+        if not attachment:
+            raise ApiException(f"{field_name} does not exist")
+        return attachment
+
     @staticmethod
     def _expected_property_type_for_company(company):
         expected_property_type = PropertyValidator.validate_property_type(company.get_hms_type_display().lower())
@@ -58,6 +68,12 @@ class PropertyService:
 
     @staticmethod
     def _serialize_building(building):
+        gallery_images = [
+            building.building_image_attachment.file_url if building.building_image_attachment else "",
+            building.floor_image_attachment.file_url if building.floor_image_attachment else "",
+            building.room_image_attachment.file_url if building.room_image_attachment else "",
+            building.bathroom_image_attachment.file_url if building.bathroom_image_attachment else "",
+        ]
         return {
             "id": building.id,
             "company_id": building.company_id,
@@ -68,6 +84,15 @@ class PropertyService:
             "latitude": float(building.latitude) if building.latitude is not None else None,
             "longitude": float(building.longitude) if building.longitude is not None else None,
             "property_type": building.property_type,
+            "building_image_attachment_id": building.building_image_attachment_id,
+            "floor_image_attachment_id": building.floor_image_attachment_id,
+            "room_image_attachment_id": building.room_image_attachment_id,
+            "bathroom_image_attachment_id": building.bathroom_image_attachment_id,
+            "building_image_url": building.building_image_attachment.file_url if building.building_image_attachment else "",
+            "floor_image_url": building.floor_image_attachment.file_url if building.floor_image_attachment else "",
+            "room_image_url": building.room_image_attachment.file_url if building.room_image_attachment else "",
+            "bathroom_image_url": building.bathroom_image_attachment.file_url if building.bathroom_image_attachment else "",
+            "gallery_images": [url for url in gallery_images if url],
             "is_active": building.is_active,
             "created_at": building.created_at.isoformat() if building.created_at else "",
             "updated_at": building.updated_at.isoformat() if building.updated_at else "",
@@ -204,6 +229,23 @@ class PropertyService:
                     f"property_type must be '{expected_property_type}' for this subsite"
                 )
 
+        building_image_attachment = PropertyService._resolve_attachment(
+            payload.get("building_image_attachment_id"),
+            "building_image_attachment_id",
+        )
+        floor_image_attachment = PropertyService._resolve_attachment(
+            payload.get("floor_image_attachment_id"),
+            "floor_image_attachment_id",
+        )
+        room_image_attachment = PropertyService._resolve_attachment(
+            payload.get("room_image_attachment_id"),
+            "room_image_attachment_id",
+        )
+        bathroom_image_attachment = PropertyService._resolve_attachment(
+            payload.get("bathroom_image_attachment_id"),
+            "bathroom_image_attachment_id",
+        )
+
         building = PropertyRepository.create_building(
             company=company,
             city=city,
@@ -212,6 +254,10 @@ class PropertyService:
             latitude=payload.get("latitude"),
             longitude=payload.get("longitude"),
             property_type=resolved_property_type,
+            building_image_attachment=building_image_attachment,
+            floor_image_attachment=floor_image_attachment,
+            room_image_attachment=room_image_attachment,
+            bathroom_image_attachment=bathroom_image_attachment,
             is_active=payload.get("is_active", True),
             created_by=actor,
             updated_by=actor,
@@ -254,6 +300,28 @@ class PropertyService:
             update_data["property_type"] = requested_property_type
         if "is_active" in payload and payload.get("is_active") is not None:
             update_data["is_active"] = payload.get("is_active")
+
+        if "building_image_attachment_id" in payload:
+            update_data["building_image_attachment"] = PropertyService._resolve_attachment(
+                payload.get("building_image_attachment_id"),
+                "building_image_attachment_id",
+            )
+        if "floor_image_attachment_id" in payload:
+            update_data["floor_image_attachment"] = PropertyService._resolve_attachment(
+                payload.get("floor_image_attachment_id"),
+                "floor_image_attachment_id",
+            )
+        if "room_image_attachment_id" in payload:
+            update_data["room_image_attachment"] = PropertyService._resolve_attachment(
+                payload.get("room_image_attachment_id"),
+                "room_image_attachment_id",
+            )
+        if "bathroom_image_attachment_id" in payload:
+            update_data["bathroom_image_attachment"] = PropertyService._resolve_attachment(
+                payload.get("bathroom_image_attachment_id"),
+                "bathroom_image_attachment_id",
+            )
+
         update_data["updated_by"] = actor
 
         building = PropertyRepository.update_building(building, **update_data)

@@ -7,3 +7,4 @@ daphne
 graphene-django
 Django-graphql-jwt
 python-dotenv
+Pillow
