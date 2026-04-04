@@ -4,7 +4,13 @@ from pathlib import Path
 from PIL import Image, ImageOps, UnidentifiedImageError
 from django.core.files.uploadedfile import InMemoryUploadedFile, UploadedFile
 
-from apps.attachments.repositories.attachment_repository import create_attachment
+from apps.attachments.repositories.attachment_repository import (
+    create_attachment,
+    delete_attachment_record,
+    get_attachment_by_id,
+    list_attachments_by_entity,
+)
+from common.exceptions.api_exception import ApiException
 
 
 MAX_IMAGE_DIMENSION = 1600
@@ -99,3 +105,18 @@ def serialize_attachment(attachment) -> dict[str, int | str | None]:
         "file_name": attachment.saved_filename or attachment.original_filename,
         "original_file_name": attachment.original_filename,
     }
+
+
+def delete_attachment(attachment_id: int) -> None:
+    attachment = get_attachment_by_id(attachment_id)
+    if attachment is None:
+        raise ApiException("Attachment not found.", status_code=404)
+
+    if attachment.file:
+        attachment.file.delete(save=False)
+    delete_attachment_record(attachment)
+
+
+def list_attachments(entity_type: str, entity_id: int, hms_id: int | None = None) -> list[dict[str, int | str | None]]:
+    attachments = list_attachments_by_entity(entity_type=entity_type, entity_id=entity_id, hms_id=hms_id)
+    return [serialize_attachment(attachment) for attachment in attachments]

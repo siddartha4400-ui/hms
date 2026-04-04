@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@apollo/client/react';
 import Link from 'next/link';
-import { FiBookOpen, FiCalendar, FiFileText, FiHome, FiLayers, FiLogIn, FiMapPin, FiMoon } from 'react-icons/fi';
+import { FiBookOpen, FiCalendar, FiFileText, FiHome, FiLogIn, FiMapPin, FiMoon } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
 import { getUserHmsId, getUserRole, getValidAuthToken } from '@/lib/auth-token';
 import { GET_AVAILABLE_ROUTES_QUERY } from '@/project_components/common-routes/graphql/operations';
@@ -208,17 +208,20 @@ export default function DashboardV2Organism() {
 
     if (role === 'root_admin' || availableRoutes.some((route) => route.visible && route.path === '/subsites')) {
       tiles.push({
-        title: 'Subsites Management',
+        title: 'Website Management',
         href: '/subsites',
         icon: <FiMapPin className="h-3 w-3 sm:h-4 sm:w-4" />,
       });
     }
 
-    tiles.push({
-      title: 'Back to Dashboard',
-      href: '/dashboard',
-      icon: <FiLayers className="h-3 w-3 sm:h-4 sm:w-4" />,
-    });
+    if (role === 'root_admin') {
+      tiles.push({
+        title: 'Cities Management',
+        href: '/cities',
+        icon: <FiMapPin className="h-3 w-3 sm:h-4 sm:w-4" />,
+      });
+    }
+
   }
 
   if (tiles.length > 0) {
@@ -229,11 +232,11 @@ export default function DashboardV2Organism() {
         <main className={styles.dashboardMain}>
           <div className={styles.headerCard}>
             <p className={styles.eyebrowText}>
-              Permission Based Dashboard V2
+              Dashboard
             </p>
-            <h1 className={styles.headerTitle}>Property Operations Dashboard (V2)</h1>
+            <h1 className={styles.headerTitle}>Welcome to Your Dashboard</h1>
             <p className={styles.headerSubtitle}>
-              Tile access is loaded from your permissions.
+              Your available actions are shown below based on your role and permissions.
             </p>
             {role === 'root_admin' ? (
               <div className={styles.actionControls}>

@@ -284,10 +284,13 @@ export default function SubsiteDashboardOrganism() {
 
   const updateBuildingMedia = (key: BuildingMediaKey, attachments: UploadedAttachment[]) => {
     const first = attachments?.[0];
-    if (!first?.id) {
-      return;
-    }
-    setBuildingForm((current) => ({ ...current, [key]: first.id }));
+    const nextId = first?.id ?? null;
+    setBuildingForm((current) => {
+      if (current[key] === nextId) {
+        return current;
+      }
+      return { ...current, [key]: nextId };
+    });
   };
 
   const resetLevelsBelow = (level: 'subsite' | 'city' | 'building' | 'floor' | 'room') => {
@@ -1437,7 +1440,7 @@ export default function SubsiteDashboardOrganism() {
             compact
             label="Building photos"
             showUploadedList
-            onUploadComplete={(attachments) => updateBuildingMedia('buildingImageAttachmentId', attachments)}
+            onAttachmentsChange={(attachments) => updateBuildingMedia('buildingImageAttachmentId', attachments)}
           />
           <AttachmentUploader
             entityType="floor_image"
@@ -1448,7 +1451,7 @@ export default function SubsiteDashboardOrganism() {
             compact
             label="Floor image"
             showUploadedList
-            onUploadComplete={(attachments) => updateBuildingMedia('floorImageAttachmentId', attachments)}
+            onAttachmentsChange={(attachments) => updateBuildingMedia('floorImageAttachmentId', attachments)}
           />
           <AttachmentUploader
             entityType="room_image"
@@ -1459,7 +1462,7 @@ export default function SubsiteDashboardOrganism() {
             compact
             label="Room image"
             showUploadedList
-            onUploadComplete={(attachments) => updateBuildingMedia('roomImageAttachmentId', attachments)}
+            onAttachmentsChange={(attachments) => updateBuildingMedia('roomImageAttachmentId', attachments)}
           />
           <AttachmentUploader
             entityType="bathroom_image"
@@ -1470,7 +1473,7 @@ export default function SubsiteDashboardOrganism() {
             compact
             label="Bathroom image"
             showUploadedList
-            onUploadComplete={(attachments) => updateBuildingMedia('bathroomImageAttachmentId', attachments)}
+            onAttachmentsChange={(attachments) => updateBuildingMedia('bathroomImageAttachmentId', attachments)}
           />
         </div>
       </ReusableFormModal>

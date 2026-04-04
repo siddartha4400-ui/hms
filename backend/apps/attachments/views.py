@@ -5,7 +5,7 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 
-from apps.attachments.services import serialize_attachment, upload_attachment
+from apps.attachments.services import delete_attachment, list_attachments, serialize_attachment, upload_attachment
 from apps.attachments.validators import validate_attachment_payload
 from common.exceptions.api_exception import ApiException
 
@@ -42,3 +42,41 @@ class AttachmentUploadView(View):
             return JsonResponse({"error": exc.message}, status=exc.status_code)
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid request payload."}, status=400)
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class AttachmentDeleteView(View):
+    http_method_names = ["delete"]
+
+    def delete(self, request, attachment_id, *args, **kwargs):
+        try:
+            delete_attachment(int(attachment_id))
+            return JsonResponse({"success": True}, status=200)
+        except ApiException as exc:
+            return JsonResponse({"error": exc.message}, status=exc.status_code)
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class AttachmentListView(View):
+    http_method_names = ["get"]
+
+    def get(self, request, *args, **kwargs):
+        try:
+            entity_type = request.GET.get("entity_type")
+            entity_id_raw = request.GET.get("entity_id")
+            hms_id_raw = request.GET.get("hms_id")
+
+            if not entity_type:
+                raise ApiException("entity_type is required.")
+            if not entity_id_raw:
+                raise ApiException("entity_id is required.")
+
+            entity_id = int(entity_id_raw)
+            hms_id = int(hms_id_raw) if hms_id_raw else None
+
+            attachments = list_attachments(entity_type=entity_type, entity_id=entity_id, hms_id=hms_id)
+            return JsonResponse({"attachments": attachments}, status=200)
+        except ValueError:
+            return JsonResponse({"error": "entity_id and hms_id must be valid integers."}, status=400)
+        except ApiException as exc:
+            return JsonResponse({"error": exc.message}, status=exc.status_code)

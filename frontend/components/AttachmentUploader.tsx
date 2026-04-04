@@ -1,7 +1,8 @@
 "use client";
 
-import { ChangeEvent, useId, useMemo, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import imageCompression from "browser-image-compression";
+import { FiTrash2 } from "react-icons/fi";
 import { normalizeBackendAssetUrl } from "@/lib/backend-url";
 
 export type UploadedAttachment = {
@@ -42,6 +43,7 @@ type Props = {
     disabled: boolean;
   }) => React.ReactNode;
   onUploadComplete?: (attachments: UploadedAttachment[]) => void;
+  onAttachmentsChange?: (attachments: UploadedAttachment[]) => void;
   onUploadError?: (message: string) => void;
 };
 
@@ -72,6 +74,20 @@ function getUploadEndpoint(): string {
   }
 
   return graphqlUrl.replace(/\/graphql\/?$/, "/api/attachments/upload/");
+}
+
+function getAttachmentEndpointBase(): string {
+  const explicitBase = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "");
+  if (explicitBase) {
+    return `${explicitBase}/api/attachments`;
+  }
+
+  const graphqlUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (!graphqlUrl) {
+    return "http://localhost:8000/api/attachments";
+  }
+
+  return graphqlUrl.replace(/\/graphql\/?$/, "/api/attachments");
 }
 
 function formatBytes(value: number): string {
@@ -125,17 +141,95 @@ export default function AttachmentUploader({
   triggerContent,
   triggerRenderer,
   onUploadComplete,
+  onAttachmentsChange,
   onUploadError,
 }: Props) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const uploadEndpoint = useMemo(getUploadEndpoint, []);
+  const attachmentEndpointBase = useMemo(getAttachmentEndpointBase, []);
   const [state, setState] = useState<UploadState>({
     uploading: false,
     error: "",
     attachments: [],
   });
   const [previewAttachment, setPreviewAttachment] = useState<UploadedAttachment | null>(null);
+  const [deletingAttachmentIds, setDeletingAttachmentIds] = useState<number[]>([]);
+  const onAttachmentsChangeRef = useRef<Props["onAttachmentsChange"]>(onAttachmentsChange);
+
+  useEffect(() => {
+    onAttachmentsChangeRef.current = onAttachmentsChange;
+  }, [onAttachmentsChange]);
+
+  useEffect(() => {
+    onAttachmentsChangeRef.current?.(state.attachments);
+  }, [state.attachments]);
+
+  useEffect(() => {
+    let isActive = true;
+    const controller = new AbortController();
+
+    async function loadExistingAttachments() {
+      if (!entityType || !entityId || entityId <= 0) {
+        setState((current) => ({
+          ...current,
+          error: "",
+          attachments: [],
+        }));
+        return;
+      }
+
+      try {
+        const query = new URLSearchParams({
+          entity_type: entityType,
+          entity_id: String(entityId),
+        });
+        if (hmsId && hmsId > 0) {
+          query.set("hms_id", String(hmsId));
+        }
+
+        const response = await fetch(`${attachmentEndpointBase}/?${query.toString()}`, {
+          method: "GET",
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(payload?.error || "Unable to load attachments.");
+        }
+
+        const attachments = Array.isArray(payload?.attachments)
+          ? (payload.attachments as UploadedAttachment[]).map((item) => ({
+              ...item,
+              url: normalizeBackendAssetUrl(item?.url),
+            }))
+          : [];
+
+        if (!isActive) {
+          return;
+        }
+
+        setState((current) => ({
+          ...current,
+          error: "",
+          attachments,
+        }));
+      } catch (error) {
+        if (!isActive || controller.signal.aborted) {
+          return;
+        }
+        const message = error instanceof Error ? error.message : "Unable to load attachments.";
+        setState((current) => ({ ...current, error: message }));
+      }
+    }
+
+    void loadExistingAttachments();
+
+    return () => {
+      isActive = false;
+      controller.abort();
+    };
+  }, [attachmentEndpointBase, entityId, entityType, hmsId]);
+
   const isUploadDisabled = disabled || state.uploading;
   const isPreviewPdf = Boolean(
     previewAttachment?.mime_type?.toLowerCase().includes("pdf") ||
@@ -194,6 +288,7 @@ export default function AttachmentUploader({
       }
 
       setState((current) => ({
+        ...current,
         uploading: false,
         error: "",
         attachments: [...uploadedAttachments, ...current.attachments],
@@ -205,6 +300,43 @@ export default function AttachmentUploader({
       onUploadError?.(message);
     } finally {
       event.target.value = "";
+    }
+  }
+
+  async function removeAttachment(attachment: UploadedAttachment) {
+    if (deletingAttachmentIds.includes(attachment.id) || disabled) {
+      return;
+    }
+
+    setDeletingAttachmentIds((current) => [...current, attachment.id]);
+
+    try {
+      const response = await fetch(`${attachmentEndpointBase}/${attachment.id}/`, {
+        method: "DELETE",
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || "Unable to delete attachment.");
+      }
+
+      setState((current) => {
+        const nextAttachments = current.attachments.filter((item) => item.id !== attachment.id);
+        return {
+          ...current,
+          error: "",
+          attachments: nextAttachments,
+        };
+      });
+
+      if (previewAttachment?.id === attachment.id) {
+        setPreviewAttachment(null);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to delete attachment.";
+      setState((current) => ({ ...current, error: message }));
+      onUploadError?.(message);
+    } finally {
+      setDeletingAttachmentIds((current) => current.filter((id) => id !== attachment.id));
     }
   }
 
@@ -377,6 +509,16 @@ export default function AttachmentUploader({
                             Open
                           </a>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => void removeAttachment(attachment)}
+                          disabled={deletingAttachmentIds.includes(attachment.id)}
+                          className="inline-flex items-center rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
+                          style={{ borderColor: "rgba(239,68,68,0.35)", color: "#fca5a5" }}
+                          aria-label={`Delete ${attachment.original_file_name || "attachment"}`}
+                        >
+                          <FiTrash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </div>
                   </div>
